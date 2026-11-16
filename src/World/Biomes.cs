@@ -31,6 +31,8 @@ public static class Biomes
     public static readonly Color Rock = new(0.45f, 0.43f, 0.40f);
     public static readonly Color Snow = new(0.93f, 0.95f, 0.98f);
     public static readonly Color Trail = new(0.42f, 0.36f, 0.26f);
+    public static readonly Color Dirt = new(0.36f, 0.34f, 0.20f);   // bratte bakker i lavlandet (jord og gress)
+    public static readonly Color Scree = new(0.52f, 0.50f, 0.46f);  // ur ved fjellfoten
 
     public static string Name(Biome b) => b switch
     {
@@ -66,7 +68,8 @@ public static class Biomes
     }
 
     /// <summary>Kontinuerlig bakkefarge (sRGB) som blander sonene mykt.</summary>
-    public static Color GroundColor(float h, float temp, float moist, float ny)
+    /// <param name="rock">bergmaske 0..1 (WorldGenerator.GetRock); -1 = ukjent (bruk høyden)</param>
+    public static Color GroundColor(float h, float temp, float moist, float ny, float rock = -1f)
     {
         if (h < 0f)
             return SeaFloor.Lerp(Sand, SmoothStep(-6f, 0f, h));
@@ -78,7 +81,12 @@ public static class Biomes
         c = c.Lerp(Heath, SmoothStep(0.34f, 0.26f, temp));
         c = c.Lerp(Rock, SmoothStep(105f, 150f, h) * 0.85f);
         c = c.Lerp(Sand, SmoothStep(3.6f, 1.6f, h) * SmoothStep(0.62f, 0.8f, ny));   // sand bare der det er slakt
-        c = c.Lerp(Rock, SmoothStep(0.80f, 0.62f, ny));
+        if (rock < 0f) rock = SmoothStep(30f, 80f, h);
+        // Bratt i lavlandet: jord/mørkere gress. Berg bare der det er fjell (eller svært bratt).
+        c = c.Lerp(Dirt, SmoothStep(0.86f, 0.7f, ny) * (1f - rock) * 0.6f);
+        c = c.Lerp(Rock, SmoothStep(0.82f, 0.62f, ny) * rock + SmoothStep(0.6f, 0.45f, ny) * (1f - rock));
+        // Hyller i fjellet: gress og lav der det er flatt nok
+        c = c.Lerp(Scree, rock * SmoothStep(0.9f, 0.8f, ny) * SmoothStep(0.62f, 0.75f, ny) * 0.5f);
         float snow = Mathf.Max(SmoothStep(0.16f, 0.09f, temp), SmoothStep(225f, 260f, h));
         c = c.Lerp(Snow, snow * SmoothStep(0.50f, 0.72f, ny));
         return c;

@@ -25,20 +25,22 @@ vec3 wind_displace(vec3 v, mat4 model, float t, float bend, float flutter) {
 	float phase = dot(root.xz, vec2(0.113, 0.071));
 
 	float gust = wind_gust(root.xz, t);
-	float sway = sin(t * (0.9 + wind_strength * 0.9) + phase) * 0.35 + sin(t * 2.3 + phase * 1.7) * 0.12;
-	float amt = wind_strength * (0.35 + gust * 0.9 + sway) * bend;
+	// Treet lener seg i kastene og svinger sakte tilbake (lav frekvens, som et tungt tre)
+	float sway = sin(t * (0.55 + wind_strength * 0.5) + phase) * 0.25 + sin(t * 1.3 + phase * 1.7) * 0.06;
+	float amt = wind_strength * (0.3 + gust * 0.8 + sway) * bend * 0.7;
 	float hf = h * h * 0.0022;                    // 10 m -> 0.22, 18 m -> 0.7
 	vec3 dir = vec3(wind_dir.x, 0.0, wind_dir.y);
 	vec3 off = dir * amt * hf;
 	// Litt sideveis vugging, så trærne ikke bare nikker
-	off += vec3(-dir.z, 0.0, dir.x) * sin(t * 1.3 + phase * 2.1) * wind_strength * 0.25 * hf * bend;
+	off += vec3(-dir.z, 0.0, dir.x) * sin(t * 0.8 + phase * 2.1) * wind_strength * 0.1 * hf * bend;
 	off.y -= abs(amt) * hf * hf * 0.15;           // tuppen synker litt når den bøyes
 
 	// Løvrisling
 	float r = length(v.xz) * sy;
-	float fl = sin(t * (6.0 + wind_strength * 5.0) + dot(wp, vec3(2.3, 1.9, 2.9)))
-	         + 0.6 * sin(t * 10.7 + dot(wp, vec3(-3.1, 2.2, 1.7)));
-	float fa = flutter * (0.012 + 0.05 * wind_strength * (0.4 + gust)) * clamp(r * 0.6, 0.0, 1.0) * clamp(h * 0.4, 0.0, 1.0);
+	// Lav romlig frekvens: hele greiner beveger seg samlet (høy frekvens gir "gelé")
+	float fl = sin(t * (2.2 + wind_strength * 2.0) + dot(wp, vec3(0.35, 0.25, 0.3)) + phase)
+	         + 0.4 * sin(t * 4.1 + dot(wp, vec3(-0.5, 0.4, 0.45)));
+	float fa = flutter * (0.004 + 0.022 * wind_strength * (0.3 + gust)) * clamp(r * 0.5, 0.0, 1.0) * clamp(h * 0.3, 0.0, 1.0);
 	off += vec3(0.6, 0.35, -0.5) * fl * fa;
 
 	return transpose(m) * off / s2;               // tilbake til objektrom (uniform skala)

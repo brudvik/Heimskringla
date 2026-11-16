@@ -10,8 +10,8 @@ namespace Heimskringla.Vegetation;
 public partial class GrassManager : Node3D
 {
     private const float CellSize = 32f;
-    private const float Radius = 72f;
-    private const float Spacing = 0.75f;
+    private const float Radius = 60f;
+    private const float Spacing = 0.5f;
 
     private sealed class GrassCell
     {
@@ -24,7 +24,7 @@ public partial class GrassManager : Node3D
     private float _timer;
     public int CellCount => _cells.Count;
 
-    private static readonly float[] BiomeDensity = { 0f, 0.03f, 0.95f, 0.45f, 0.25f, 0.65f, 0.35f, 0.08f, 0f };
+    private static readonly float[] BiomeDensity = { 0f, 0.08f, 1f, 0.85f, 0.5f, 0.9f, 0.6f, 0.15f, 0f };
 
     public override void _Process(double delta)
     {
@@ -84,14 +84,16 @@ public partial class GrassManager : Node3D
             float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.78f, 0.9f, ny)
                             * (1f - w.TrailMask(x, z, h, ny));
             if (roll >= density) continue;
-            var col = Biomes.GroundColor(h, temp, moist, ny);
-            float s = 0.7f + sc * 0.7f;
+            var col = Biomes.GroundColor(h, temp, moist, ny, w.GetRock(x, z));
+            // Større tuster der det er frodig, og "enger" med høyere gress
+            float meadow = w.ColorNoise(x * 0.15f, z * 0.15f) * 0.5f + 0.5f;
+            float s = (0.75f + sc * 0.5f) * (0.8f + meadow * 0.6f) * (0.8f + moist * 0.4f);
             var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(s, s, s));
             data.Add(basis.X.X); data.Add(basis.Y.X); data.Add(basis.Z.X); data.Add(x);
             data.Add(basis.X.Y); data.Add(basis.Y.Y); data.Add(basis.Z.Y); data.Add(h - 0.05f);
             data.Add(basis.X.Z); data.Add(basis.Y.Z); data.Add(basis.Z.Z); data.Add(z);
             float v = 0.9f + sc * 0.2f;
-            data.Add(col.R * v); data.Add(col.G * v); data.Add(col.B * v); data.Add(1f);
+            data.Add(col.R * v); data.Add(col.G * v); data.Add(col.B * v); data.Add(rng.NextSingle());
         }
         return data.ToArray();
     }

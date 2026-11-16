@@ -23,11 +23,13 @@ public static class TerrainMeshBuilder
     {
         int n = Quads + 1;
         float step = size / Quads;
+        // Steinlagene (8 m) kan bare vises der rutenettet er fint nok
+        float detail = Biomes.SmoothStep(3f, 1f, step);
         int nb = n + 2;
         var h = new float[nb * nb];
         for (int j = 0; j < nb; j++)
         for (int i = 0; i < nb; i++)
-            h[j * nb + i] = w.GetHeight(x0 + (i - 1) * step, z0 + (j - 1) * step);
+            h[j * nb + i] = w.GetHeight(x0 + (i - 1) * step, z0 + (j - 1) * step, detail);
 
         int skirtCount = 4 * n;
         var verts = new Vector3[n * n + skirtCount];
@@ -43,7 +45,7 @@ public static class TerrainMeshBuilder
             var nrm = new Vector3(hl - hr, 2f * step, hd - hu).Normalized();
             float x = x0 + i * step, z = z0 + j * step;
             // Normal for fargeformål beregnes fra 1 m-skala nært, ellers fra mesh-oppløsningen
-            Color c = Biomes.GroundColor(hc, w.GetTemp(x, z), w.GetMoist(x, z), nrm.Y);
+            Color c = Biomes.GroundColor(hc, w.GetTemp(x, z), w.GetMoist(x, z), nrm.Y, w.GetRock(x, z));
             float cn = 1f + w.ColorNoise(x, z) * 0.07f;
             if (step <= 2f)
             {
@@ -57,7 +59,7 @@ public static class TerrainMeshBuilder
             // Okklusjon/krumning: søkk blir mørkere, rygger lysere (lagres i alfa, 0..1 => 0..1.25)
             float lap = (hl + hr + hd + hu) * 0.25f - hc;               // lokal krumning
             float r = Mathf.Max(14f, step * 3f);
-            float ring = (w.GetHeight(x - r, z) + w.GetHeight(x + r, z) + w.GetHeight(x, z - r) + w.GetHeight(x, z + r)) * 0.25f - hc;
+            float ring = (w.GetHeight(x - r, z, detail) + w.GetHeight(x + r, z, detail) + w.GetHeight(x, z - r, detail) + w.GetHeight(x, z + r, detail)) * 0.25f - hc;
             float occl = lap / Mathf.Sqrt(step) * 0.9f + ring / r * 1.6f;
             float ao = Mathf.Clamp(1f - occl, 0.45f, 1.2f);
             colors[v] = new Color(c.R * cn, c.G * cn, c.B * cn, ao / 1.25f);

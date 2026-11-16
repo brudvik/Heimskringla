@@ -85,6 +85,36 @@ vec2 fbm_grad(vec2 p, float e) {
 	return vec2(gfbm(p + vec2(e, 0.0)) - h0, gfbm(p + vec2(0.0, e)) - h0) / e;
 }
 
+// Triplanar: sampler støyen i de tre aksplanene og blander etter normalen,
+// så mønsteret ikke strekkes loddrett på stup (det ga "dratt opp av bakken"-inntrykket)
+vec3 tri_w(vec3 n) {
+	vec3 w = pow(abs(n), vec3(4.0));
+	return w / (w.x + w.y + w.z);
+}
+float tri_vnoise(vec3 p, vec3 w, float s) {
+	return vnoise(p.zy * s) * w.x + vnoise(p.xz * s) * w.y + vnoise(p.xy * s + 17.0) * w.z;
+}
+float tri_fbm(vec3 p, vec3 w, float s) {
+	return fbm(p.zy * s) * w.x + fbm(p.xz * s) * w.y + fbm(p.xy * s + 17.0) * w.z;
+}
+
+// Sprekker i berget: kantene i et Voronoi-mønster (0 = midt i en flate, 1 = i sprekken)
+float cracks2(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	float d1 = 8.0, d2 = 8.0;
+	for (int y = -1; y <= 1; y++)
+	for (int x = -1; x <= 1; x++) {
+		vec2 g = vec2(float(x), float(y));
+		vec2 o = vec2(hash(i + g), hash(i + g + 31.7));
+		float d = length(g + o - f);
+		if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) { d2 = d; }
+	}
+	return 1.0 - smoothstep(0.0, 0.08, d2 - d1);
+}
+float tri_cracks(vec3 p, vec3 w, float s) {
+	return cracks2(p.zy * s) * w.x + cracks2(p.xz * s) * w.y + cracks2(p.xy * s + 17.0) * w.z;
+}
+
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
@@ -97,12 +127,14 @@ void fragment() {
 	float near = 1.0 - smoothstep(120.0, 700.0, dist);
 
 	vec3 n = normalize(world_normal);
-	float steep = smoothstep(0.82, 0.6, n.y);           // 0 = flatt, 1 = bratt fjell
+	vec3 tw = tri_w(n);
 
 	// --- Fargevariasjon: store flekker (tørt/frodig) og små nyanser
 	float big = vnoise(world_pos.xz * 0.012);
 	float mid = vnoise(world_pos.xz * 0.07 + 31.0);
 	float fine = vnoise(world_pos.xz * 0.6) * 0.5 + vnoise(world_pos.xz * 2.3) * 0.5;
+	// Ujevn grense mellom gress og berg (ikke en glatt linje langs en høydekurve)
+	float steep = smoothstep(0.82, 0.6, n.y + (mid - 0.5) * 0.14 + (fine - 0.5) * 0.08);
 	vec3 col = base;
 	vec3 dry = base * vec3(1.18, 1.08, 0.72);
 	vec3 lush = base * vec3(0.82, 0.95, 0.80);
@@ -111,8 +143,8 @@ void fragment() {
 	col *= mix(1.0, 0.82 + fine * 0.36, near);
 
 	// --- Fjell: fargevariasjon (varme/kalde flekker, lav) og svake, uregelmessige steinlag
-	float rv1 = vnoise(world_pos.xz * 0.008 + world_pos.y * 0.004);
-	float rv2 = fbm(world_pos.xz * 0.045 + vec2(world_pos.y * 0.03, 0.0));
+	float rv1 = tri_vnoise(world_pos, tw, 0.008);
+	float rv2 = steep > 0.01 ? tri_fbm(world_pos, tw, 0.045) : fbm(world_pos.xz * 0.045);
 	vec3 warm = vec3(1.10, 1.00, 0.88), cool = vec3(0.88, 0.94, 1.04);
 	vec3 rock_tint = mix(cool, warm, rv1) * (0.80 + rv2 * 0.40);
 	float strata_n = fbm(world_pos.xz * 0.012) * 14.0 + fbm(world_pos.xz * 0.08) * 3.0;
@@ -121,6 +153,13 @@ void fragment() {
 	vec3 rock_col = col * rock_tint * (1.0 - band * 0.25);
 	// Lav/mose i forsenkninger på fjellet
 	rock_col = mix(rock_col, rock_col * vec3(0.85, 0.95, 0.70), smoothstep(0.55, 0.8, rv2) * 0.5);
+	// Sprekker og kanter i berget (bare nært)
+	if (near > 0.01 && steep > 0.01) {
+		float cr = tri_cracks(world_pos, tw, 0.11) * 0.7 + tri_cracks(world_pos, tw, 0.37) * 0.3;
+		rock_col *= 1.0 - cr * 0.45 * near;
+		// Lyse kanter rett ved sprekkene (slitt stein)
+		rock_col *= 1.0 + tri_vnoise(world_pos, tw, 1.3) * 0.12 * near;
+	}
 	float sat = max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b));
 	float grey = smoothstep(0.06, 0.02, sat) * smoothstep(0.75, 0.5, base.g);   // stein (ikke snø)
 	col = mix(col, rock_col, max(steep, grey));

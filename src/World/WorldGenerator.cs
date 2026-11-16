@@ -13,12 +13,14 @@ namespace Heimskringla.World;
 ///
 /// Dette er "terreng-sampling"-grensesnittet: en fremtidig voxel-renderer kan bruke samme kilde.
 /// </summary>
-/// <summary>Et bratt elvesteg (stryk eller fossefall) fra Top til Bottom.</summary>
-public struct Cascade
+/// <summary>Stryk/fossefall: punkter langs elva (cellesentre, vannflatens høyde) fra toppen og ned.</summary>
+public sealed class Cascade
 {
-    public Vector3 Top, Bottom;
-    public float Width;
-    public float Steep;   // fall per meter (1 = 45°)
+    public readonly List<Vector3> Points = new();
+    public readonly List<float> Widths = new();
+    public Vector3 Top => Points[0];
+    public Vector3 Bottom => Points[^1];
+    public float Drop => Top.Y - Bottom.Y;
 }
 
 public sealed class WorldGenerator
@@ -47,7 +49,8 @@ public sealed class WorldGenerator
     public int LakeCells;
 
     private readonly FastNoiseLite _warp, _cont, _hill, _mmask, _ridge, _temp, _moist;
-    private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail;
+    private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail, _crag, _strata;
+    public float[] Rock;       // 0..1: hvor mye fjell/berg det er her (styrer steinlag, klipper og farge)
 
     private WorldGenerator(int seed)
     {
@@ -65,6 +68,9 @@ public sealed class WorldGenerator
         _border = MakeNoise(seed + 10, 1f / 35f, 2);
         _color = MakeNoise(seed + 11, 1f / 25f, 2);
         _trail = MakeNoise(seed + 12, 1f / 420f, 2);
+        _crag = MakeNoise(seed + 13, 1f / 26f, 3);
+        _crag.SetFractalType(FastNoiseLite.FractalType.Ridged);
+        _strata = MakeNoise(seed + 14, 1f / 300f, 2);
     }
 
     private static FastNoiseLite MakeNoise(int seed, float freq, int octaves)
@@ -227,30 +233,39 @@ public sealed class WorldGenerator
         FlowZ = BoxBlur(fz, 1);
         Step("Strøm");
 
-        // Stryk og fossefall: bratte elvesteg mellom en celle og den neste nedstrøms
+        // Stryk og fossefall: sammenhengende kjeder av bratte elvesteg, fra der elva begynner å
+        // falle til den lander i vann eller flatere terreng.
         progress("Finner fossefall...");
         float Surface(int k) => MathF.Max(Height[k] + 0.25f, water[k] > NoWater ? water[k] : float.MinValue);
+        bool IsRiver(int k) => acc[k] >= WorldSettings.RiverThreshold && h[k] > 0f;
+        bool Steep(int k)
+        {
+            if (!IsRiver(k)) return false;
+            int d = _down[k];
+            if (d < 0) return false;
+            return Surface(k) - MathF.Max(Surface(d), 0f) > 1.2f;
+        }
+        var steepUp = new bool[count];   // har en bratt elvecelle rett oppstrøms
+        for (int k = 0; k < count; k++)
+            if (_down[k] >= 0 && Steep(k)) steepUp[_down[k]] = true;
         for (int j = 2; j < N - 2; j++)
         for (int i = 2; i < N - 2; i++)
         {
             int c = j * N + i;
-            if (acc[c] < WorldSettings.RiverThreshold || h[c] <= 0f) continue;
-            int d = _down[c];
-            if (d < 0) continue;
-            float top = Surface(c), bottom = Surface(d);
-            if (bottom < 0f) bottom = 0f;                      // ut i havet
-            float drop = top - bottom;
-            float run = (d - c == 1 || d - c == -1 || d - c == N || d - c == -N) ? Cell : Cell * 1.4142f;
-            if (drop < 1.2f) continue;
-            float sz = MathF.Log2(acc[c] / WorldSettings.RiverThreshold);
-            float width = (sz > 4.5f ? 5f : sz > 2.3f ? 3f : 1.6f) * Cell * 0.55f;
-            Cascades.Add(new Cascade
+            if (!Steep(c) || steepUp[c]) continue;   // kjeden starter øverst
+            var chain = new Cascade();
+            int cur = c, guard = 0;
+            while (cur >= 0 && guard++ < 400)
             {
-                Top = new Vector3(-Half + i * Cell, top, -Half + j * Cell),
-                Bottom = new Vector3(-Half + (d % N) * Cell, bottom, -Half + (d / N) * Cell),
-                Width = width,
-                Steep = drop / run,
-            });
+                int ci = cur % N, cj = cur / N;
+                float sz = MathF.Log2(MathF.Max(acc[cur], 1f) / WorldSettings.RiverThreshold);
+                float width = (sz > 4.5f ? 5f : sz > 2.3f ? 3f : 1.6f) * Cell * 0.55f;
+                chain.Points.Add(new Vector3(-Half + ci * Cell, MathF.Max(Surface(cur), 0f), -Half + cj * Cell));
+                chain.Widths.Add(width);
+                if (!Steep(cur)) break;
+                cur = _down[cur];
+            }
+            if (chain.Points.Count >= 2) Cascades.Add(chain);
         }
         Step($"Fossefall ({Cascades.Count})");
 
@@ -283,6 +298,23 @@ public sealed class WorldGenerator
             }
         });
         Step("Klima");
+
+        // Bergmaske: bratt eller høyt terreng er berg. Styrer steinlag/klipper i GetHeight og fargen.
+        progress("Former fjellsidene...");
+        var rock = new float[count];
+        for (int j = 1; j < N - 1; j++)
+        for (int i = 1; i < N - 1; i++)
+        {
+            int k = j * N + i;
+            float gx = (Height[k + 1] - Height[k - 1]) / (2f * Cell), gz = (Height[k + N] - Height[k - N]) / (2f * Cell);
+            float slope = MathF.Sqrt(gx * gx + gz * gz);
+            float r = Biomes.SmoothStep(0.45f, 0.95f, slope) * Biomes.SmoothStep(15f, 45f, Height[k]);
+            r = MathF.Max(r, Biomes.SmoothStep(110f, 170f, Height[k]) * 0.8f);
+            if (water[k] > NoWater) r *= 0.3f;
+            rock[k] = r;
+        }
+        Rock = BoxBlur(BoxBlur(rock, 1), 1);
+        Step("Bergmaske");
 
         progress("Tegner verdenskart...");
         BuildMapPixels();
@@ -541,7 +573,7 @@ public sealed class WorldGenerator
                     c = new Color(0.12f, 0.28f, 0.48f).Lerp(new Color(0.30f, 0.50f, 0.68f), Biomes.SmoothStep(-40f, 0f, hh));
                 else
                 {
-                    c = Biomes.GroundColor(hh, Temp[k], Moist[k], n.Y);
+                    c = Biomes.GroundColor(hh, Temp[k], Moist[k], n.Y, Rock != null ? Rock[k] : -1f);
                     float shade = 0.65f + 0.55f * MathF.Max(0f, n.Dot(light));
                     c = new Color(c.R * shade, c.G * shade, c.B * shade);
                 }
@@ -590,12 +622,35 @@ public sealed class WorldGenerator
     }
 
     /// <summary>Detaljert terrenghøyde i meter.</summary>
-    public float GetHeight(float x, float z)
+    /// <param name="detail">1 = full detalj (kollisjon, nære mesher); lavere for grove LOD-mesher,
+    /// der de fine steinlagene ellers aliaserer til loddrette striper.</param>
+    public float GetHeight(float x, float z) => GetHeight(x, z, 1f);
+
+    public float GetHeight(float x, float z, float detail)
     {
         float hc = SampleBicubic(Height, x, z);
         float amp = SampleBilinear(DetailAmp, x, z);
-        return hc + (_detail.GetNoise(x, z) + _detailFine.GetNoise(x, z) * 0.18f) * amp;
+        float h = hc + (_detail.GetNoise(x, z) + _detailFine.GetNoise(x, z) * 0.18f) * amp;
+        float rock = Rock != null ? SampleBilinear(Rock, x, z) : 0f;
+        rock *= detail;
+        if (rock > 0.02f)
+        {
+            // Skrå steinlag: hyller (nesten flate) og stup mellom dem. Lagene heller litt (tilt),
+            // så de ikke blir perfekte vannrette trinn.
+            const float L = 8f;
+            float tilt = _strata.GetNoise(x, z) * 22f + (x * 0.012f - z * 0.007f);
+            float t = (h + tilt) / L;
+            float fl = MathF.Floor(t), f = t - fl;
+            float riser = Biomes.SmoothStep(0.62f, 0.98f, f);
+            float terrace = (fl + 0.2f * f + 0.8f * riser) * L - tilt;
+            h = h + (terrace - h) * rock * 0.65f;
+            // Knudrete klipper (ryggete støy)
+            h += (_crag.GetNoise(x, z) - 0.35f) * 3.2f * rock;
+        }
+        return h;
     }
+
+    public float GetRock(float x, float z) => Rock != null ? SampleBilinear(Rock, x, z) : 0f;
 
     public Vector3 GetNormal(float x, float z, float e = 1f)
     {

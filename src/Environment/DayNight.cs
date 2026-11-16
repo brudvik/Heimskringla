@@ -180,6 +180,7 @@ public partial class DayNight : Node3D
         float dawn = Biomes.SmoothStep(0.18f, 0.27f, TimeOfDay) * (1f - Biomes.SmoothStep(0.30f, 0.38f, TimeOfDay));
         _env.FogHeightDensity = 0.0006f + dawn * 0.006f + fog * 0.01f;
         RenderingServer.GlobalShaderParameterSet("sky_horizon", new Vector3(horizon.R, horizon.G, horizon.B));
+        RenderingServer.GlobalShaderParameterSet("sky_zenith", new Vector3(top.R, top.G, top.B));
     }
 
     public bool ForceAurora;

@@ -14,8 +14,11 @@ uniform vec3 deep_color : source_color = vec3(0.03, 0.14, 0.24);
 uniform float wave_strength = 1.0;     // småkrusninger
 uniform bool is_ocean = false;
 uniform float wave_height = 1.0;       // skalerer Gerstner-bølgene
-uniform sampler2D depth_tex : hint_depth_texture, filter_linear_mipmap;
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform float reflect_strength = 1.0;
 global uniform vec3 sky_horizon;
+global uniform vec3 sky_zenith;
 global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
 global uniform float wetness;
@@ -135,25 +138,33 @@ void fragment() {
 	vec3 n_world = normalize(wave_normal + vec3(-g.x, 0.0, -g.y) * rip * 0.35);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 
-	// Dybde (fra dybdebufferen) til farge, gjennomsiktighet og strandskum
+	// Dybde (fra dybdebufferen): hvor mye vann vi ser gjennom
 	float depth = texture(depth_tex, SCREEN_UV).r;
 	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	vec3 pixel_pos = upos.xyz / upos.w;
 	float water_depth = max(0.0, VERTEX.z - pixel_pos.z);
 
+	// ---- Lysbrytning: bunnen sett gjennom vannet, forvrengt av bølgene
+	vec2 ruv = SCREEN_UV + n_world.xz * 0.035 * clamp(water_depth * 0.3, 0.0, 1.0) * fade;
+	float rd = texture(depth_tex, ruv).r;
+	vec4 rpos = INV_PROJECTION_MATRIX * vec4(ruv * 2.0 - 1.0, rd, 1.0);
+	float rdepth = VERTEX.z - rpos.z / rpos.w;
+	if (rdepth < 0.0) { ruv = SCREEN_UV; rdepth = water_depth; }   // ikke la ting foran vannet "lekke" inn
+	vec3 under = textureLod(screen_tex, ruv, 0.0).rgb;
+	// Lys absorberes: rødt først, så grønt (klart nordisk vann blir grønnblått)
+	vec3 trans = exp(-max(rdepth, 0.0) * vec3(0.42, 0.11, 0.075) * (is_ocean ? 1.0 : 1.4));
 	float dt = clamp(water_depth / 9.0, 0.0, 1.0);
-	vec3 col = mix(shallow_color, deep_color, dt);
-	// Lys gjennom bølgetoppene (havet)
-	col += vec3(0.02, 0.09, 0.08) * crest * (1.0 - dt * 0.5);
+	vec3 body = mix(shallow_color, deep_color, dt);
+	body += vec3(0.02, 0.09, 0.08) * crest * (1.0 - dt * 0.5);   // lys gjennom bølgetoppene
 
 	// Skum: langs land, på bølgetopper, i stryk
 	float fn = vnoise(world_pos.xz * 1.7 - flow * TIME * 1.2) * 0.6 + vnoise(world_pos.xz * 5.3 - flow * TIME * 1.6) * 0.4;
-	float shore = 1.0 - smoothstep(0.0, 0.35 + wind_strength * 0.5, water_depth);
-	float foam = shore * smoothstep(0.45, 0.75, fn + shore * 0.2);
+	float shore = 1.0 - smoothstep(0.0, 0.18 + wind_strength * 0.25, water_depth);
+	float foam = shore * smoothstep(0.5, 0.8, fn + shore * 0.15) * 0.8;
 	if (is_ocean) {
 		// Brenninger: skumlinjer som ruller inn mot land på grunt vann
 		float gd = max(world_pos.y - ground_h, 0.0);
-		float surf = (1.0 - smoothstep(0.5, 4.0 + wind_strength * 4.0, gd)) * smoothstep(0.0, 0.3, gd);
+		float surf = (1.0 - smoothstep(0.3, 1.5 + wind_strength * 2.5, gd)) * smoothstep(0.0, 0.3, gd);
 		float bands = smoothstep(0.75, 0.95, sin(gd * 2.2 + TIME * 1.4 + fn * 2.0) * 0.5 + 0.5);
 		foam = max(foam, surf * bands * smoothstep(0.35, 0.7, fn) * (0.4 + wind_strength));
 		foam = max(foam, smoothstep(0.65, 0.95, crest) * smoothstep(0.45, 0.75, fn) * smoothstep(0.35, 0.8, wind_strength) * fade);
@@ -161,25 +172,66 @@ void fragment() {
 		foam = max(foam, smoothstep(1.4, 2.8, speed) * smoothstep(0.55, 0.85, fn) * 0.8);
 	}
 	foam = clamp(foam, 0.0, 1.0);
-	col = mix(col, vec3(0.9, 0.95, 1.0), foam * 0.85);
 
-	// Regndråper på overflaten
+	// ---- Speiling: skjermrom-sporing mot dybdebufferen (fjell, trær, strand), ellers himmel
+	vec3 rv = reflect(-VIEW, NORMAL);                  // visningsrom
+	vec3 rw = (INV_VIEW_MATRIX * vec4(rv, 0.0)).xyz;
+	rw.y = abs(rw.y);
+	vec3 sky = mix(pow(sky_horizon, vec3(2.2)), pow(sky_zenith, vec3(2.2)), pow(clamp(rw.y, 0.0, 1.0), 0.5));
+	vec3 refl = sky;
+	float hit = 0.0;
+	if (reflect_strength > 0.0 && rv.z < 0.2) {
+		vec3 p = VERTEX;
+		float stp = 0.6 + length(VERTEX) * 0.012;
+		vec2 huv = vec2(0.0);
+		for (int i = 0; i < 40; i++) {
+			p += rv * stp;
+			stp *= 1.12;
+			vec4 cp = PROJECTION_MATRIX * vec4(p, 1.0);
+			vec2 suv = cp.xy / cp.w * 0.5 + 0.5;
+			if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0 || cp.w < 0.0) break;
+			float sd = texture(depth_tex, suv).r;
+			vec4 sp = INV_PROJECTION_MATRIX * vec4(suv * 2.0 - 1.0, sd, 1.0);
+			float sz = sp.z / sp.w;
+			float diff = sz - p.z;                     // > 0: strålen er bak overflaten
+			if (diff > 0.0 && diff < stp * 2.5 + 1.0) {
+				// Finjuster treffet (binærsøk)
+				vec3 a = p - rv * stp / 1.12, b = p;
+				for (int k = 0; k < 5; k++) {
+					vec3 m = (a + b) * 0.5;
+					vec4 mp = PROJECTION_MATRIX * vec4(m, 1.0);
+					vec2 muv = mp.xy / mp.w * 0.5 + 0.5;
+					vec4 mq = INV_PROJECTION_MATRIX * vec4(muv * 2.0 - 1.0, texture(depth_tex, muv).r, 1.0);
+					if (mq.z / mq.w > m.z) b = m; else a = m;
+				}
+				vec4 bp = PROJECTION_MATRIX * vec4(b, 1.0);
+				huv = bp.xy / bp.w * 0.5 + 0.5;
+				vec2 edge = smoothstep(vec2(0.0), vec2(0.08), huv) * smoothstep(vec2(1.0), vec2(0.92), huv);
+				hit = edge.x * edge.y * (1.0 - float(i) / 40.0 * 0.5);
+				break;
+			}
+		}
+		if (hit > 0.0) refl = mix(sky, textureLod(screen_tex, huv, 0.0).rgb, hit);
+	}
+
+	float fres = 0.02 + 0.98 * pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 5.0);
+	fres = clamp(fres * 1.15, 0.0, 1.0) * (1.0 - foam);
+	// Sluttfarge: bunnen (gjennom vannet) + spredt lys i vannet + speiling
+	float scatter = 1.0 - (trans.r + trans.g + trans.b) / 3.0;
+	vec3 lit_body = body * scatter;                     // belyses av sol/himmel (ALBEDO)
+	ALBEDO = mix(lit_body * (1.0 - fres), vec3(0.9, 0.95, 1.0), foam * 0.85);
+	EMISSION = (under * trans * (1.0 - foam) * (1.0 - fres) + refl * fres * reflect_strength) ;
 	if (wetness > 0.05) {
 		vec2 cell = floor(world_pos.xz * 3.0);
 		float ph = fract(TIME * 1.3 + hash(cell) * 7.0);
 		vec2 c = (cell + 0.25 + vec2(hash(cell + 3.1), hash(cell + 7.7)) * 0.5) / 3.0;
 		float r = distance(world_pos.xz, c) * 3.0;
 		float ring = smoothstep(0.05, 0.0, abs(r - ph * 0.5)) * (1.0 - ph) * step(hash(cell + 1.7), wetness);
-		col += vec3(0.25) * ring * fade;
+		ALBEDO += vec3(0.25) * ring * fade;
 	}
-
-	// Fresnel: speiler himmelen i flate vinkler
-	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
-	col = mix(col, pow(sky_horizon, vec3(2.2)) * 0.9, fres * 0.65 * (1.0 - foam));
-
-	ALBEDO = col;
-	ALPHA = clamp(0.45 + water_depth * 0.22 + fres * 0.35 + foam, 0.45, 0.97);
-	ROUGHNESS = mix(0.05 + wind_strength * 0.06, 0.6, foam);
+	// Myk overgang mot land (ingen skarp kant)
+	ALPHA = clamp(smoothstep(0.0, 0.25, water_depth) + foam, 0.0, 1.0);
+	ROUGHNESS = mix(0.04 + wind_strength * 0.05, 0.6, foam);
 	METALLIC = 0.0;
-	SPECULAR = 0.6;
+	SPECULAR = 0.5;
 }

@@ -59,9 +59,8 @@ public partial class Main : Node3D
         {
             Game.AutoTest = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
-            // Ikke ta fokus/mus fra brukeren mens testen går
+            // Ikke fang musa mens testen går (brukeren jobber i andre vinduer)
             Input.MouseMode = Input.MouseModeEnum.Visible;
-            DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.NoFocus, true);
         }
         _hud = new Hud();
         AddChild(_hud);
@@ -466,14 +465,14 @@ public partial class Main : Node3D
             case 21: // største fossefall nær startpunktet
             {
                 _weather.Set(WeatherKind.Clear, true);
-                Cascade best = default; float bs = 0f;
+                Cascade best = null; float bs = 0f;
                 foreach (var c in w.Cascades)
                 {
-                    float drop = c.Top.Y - c.Bottom.Y;
-                    float score = drop * c.Width / (1f + c.Top.DistanceTo(_spawn) / 1500f);
+                    float score = c.Drop * c.Widths[0] / (1f + c.Top.DistanceTo(_spawn) / 1500f);
                     if (score > bs) { bs = score; best = c; }
                 }
-                GD.Print($"[autotest] fossefall: topp {best.Top} bunn {best.Bottom} bredde {best.Width:F1}");
+                if (best == null) break;
+                GD.Print($"[autotest] fossefall: topp {best.Top} bunn {best.Bottom} fall {best.Drop:F0} m, {best.Points.Count} punkter");
                 SetFly(true);
                 _dayNight.TimeOfDay = 0.45f;
                 // Stå nedstrøms og se oppover fallet

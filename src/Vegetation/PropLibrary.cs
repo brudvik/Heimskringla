@@ -438,33 +438,70 @@ public static class PropLibrary
             return b.ToMesh(_bark);
         }
 
+        /// <summary>
+        /// Gresstust: mange tynne, buede strå (4 ledd per strå, smalner mot tuppen).
+        /// UV.y = 0 i tuppen, 1 ved roten; UV.x = 0..1 på tvers. COLOR.r = tilfeldig per strå.
+        /// </summary>
         public static ArrayMesh BuildGrassMesh()
         {
             var rng = new Random(99);
             var v = new List<Vector3>();
             var uv = new List<Vector2>();
             var n = new List<Vector3>();
-            for (int i = 0; i < 7; i++)
+            var col = new List<Color>();
+            var idx = new List<int>();
+            const int Blades = 16, Seg = 4;
+            for (int i = 0; i < Blades; i++)
             {
                 float a = (float)rng.NextDouble() * Mathf.Tau;
-                var off = new Vector3((float)rng.NextDouble() - 0.5f, 0, (float)rng.NextDouble() - 0.5f) * 0.35f;
-                var side = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 0.045f;
-                var lean = new Vector3(Mathf.Sin(a), 0, -Mathf.Cos(a)) * ((float)rng.NextDouble() * 0.15f);
-                float h = 0.35f + (float)rng.NextDouble() * 0.35f;
-                var top = off + lean + new Vector3(0, h, 0);
-                v.Add(off - side); uv.Add(new Vector2(0, 1));
-                v.Add(off + side); uv.Add(new Vector2(1, 1));
-                v.Add(top); uv.Add(new Vector2(0.5f, 0));
-                for (int k = 0; k < 3; k++) n.Add(Vector3.Up);
+                float r = Mathf.Sqrt((float)rng.NextDouble()) * 0.28f;
+                var root = new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
+                float face = (float)rng.NextDouble() * Mathf.Tau;
+                var side = new Vector3(Mathf.Cos(face), 0, Mathf.Sin(face));
+                // Strået bøyer utover fra tustens midte (litt tilfeldig)
+                var outward = (root.LengthSquared() > 1e-4f ? root.Normalized() : new Vector3(1, 0, 0)).Rotated(Vector3.Up, ((float)rng.NextDouble() - 0.5f) * 1.2f);
+                float h = 0.28f + (float)rng.NextDouble() * 0.42f;
+                float bend = 0.08f + (float)rng.NextDouble() * 0.22f;
+                float w = 0.022f + (float)rng.NextDouble() * 0.018f;
+                float rnd = (float)rng.NextDouble();
+                int b0 = v.Count;
+                for (int k = 0; k <= Seg; k++)
+                {
+                    float t = (float)k / Seg;
+                    var c = root + outward * (bend * t * t * h * 2f) + new Vector3(0, h * t * (1f - bend * t * 0.35f), 0);
+                    float hw = w * (1f - t * 0.92f);
+                    // Normalen peker mest opp (gresset lyses som et teppe), litt mot strået
+                    var nn = (Vector3.Up * 0.8f + outward * 0.2f).Normalized();
+                    if (k < Seg)
+                    {
+                        v.Add(c - side * hw); uv.Add(new Vector2(0, 1f - t)); n.Add(nn); col.Add(new Color(rnd, 0, 0));
+                        v.Add(c + side * hw); uv.Add(new Vector2(1, 1f - t)); n.Add(nn); col.Add(new Color(rnd, 0, 0));
+                    }
+                    else
+                    {
+                        v.Add(c); uv.Add(new Vector2(0.5f, 0)); n.Add(nn); col.Add(new Color(rnd, 0, 0));
+                    }
+                }
+                for (int k = 0; k < Seg - 1; k++)
+                {
+                    int q = b0 + k * 2;
+                    idx.Add(q); idx.Add(q + 1); idx.Add(q + 2);
+                    idx.Add(q + 1); idx.Add(q + 3); idx.Add(q + 2);
+                }
+                int last = b0 + (Seg - 1) * 2;
+                idx.Add(last); idx.Add(last + 1); idx.Add(last + 2);
             }
             var arrays = new Godot.Collections.Array();
             arrays.Resize((int)Mesh.ArrayType.Max);
             arrays[(int)Mesh.ArrayType.Vertex] = v.ToArray();
             arrays[(int)Mesh.ArrayType.Normal] = n.ToArray();
             arrays[(int)Mesh.ArrayType.TexUV] = uv.ToArray();
+            arrays[(int)Mesh.ArrayType.Color] = col.ToArray();
+            arrays[(int)Mesh.ArrayType.Index] = idx.ToArray();
             var mesh = new ArrayMesh();
             mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
             mesh.SurfaceSetMaterial(0, new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/grass.gdshader") });
+            mesh.CustomAabb = new Aabb(new Vector3(-1, -0.2f, -1), new Vector3(2, 1.4f, 2));
             return mesh;
         }
     }

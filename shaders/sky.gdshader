@@ -43,9 +43,11 @@ float fbm(vec2 p) {
 vec3 aurora_light(vec3 d, float t) {
 	if (d.y < 0.01) return vec3(0.0);
 	vec3 acc = vec3(0.0);
-	const int LAYERS = 28;
+	const int LAYERS = 40;
+	// Tilfeldig startforskyvning per piksel fjerner trappetrinn mellom lagene
+	float jit = fract(sin(dot(d.xz * 1000.0 + d.y * 37.0, vec2(12.9898, 78.233))) * 43758.5453);
 	for (int i = 0; i < LAYERS; i++) {
-		float f = float(i) / float(LAYERS);
+		float f = (float(i) + jit) / float(LAYERS);
 		float h = 1.0 + f * 1.6;                       // lagets høyde (relativ)
 		vec2 p = d.xz / d.y * h;                       // treffpunkt i laget
 		// Gardinens bølgende linje (z-posisjon som funksjon av x)
@@ -53,8 +55,10 @@ vec3 aurora_light(vec3 d, float t) {
 		float dz = p.y - line;
 		float curtain = exp(-dz * dz * 3.5);
 		// Loddrette stråler langs gardinen
-		float rays = vnoise(vec2(p.x * 7.0 + t * 0.25, t * 0.05)) * 0.7 + vnoise(vec2(p.x * 23.0 - t * 0.6, 3.0)) * 0.3;
-		rays = pow(rays, 2.2) * 2.4;
+		// Stråler langs gardinen: myk støy langs linja, sakte drift (ikke regelmessige striper)
+		float along = p.x + sin(p.y * 1.3) * 0.4;
+		float rays = vnoise(vec2(along * 3.1 + t * 0.12, t * 0.04)) * 0.65 + vnoise(vec2(along * 9.0 - t * 0.3, 7.0 + t * 0.02)) * 0.35;
+		rays = 0.25 + pow(rays, 1.8) * 1.8;
 		// Grønt nederst, mot fiolett/rødt øverst; nederkanten er skarpest
 		vec3 c = mix(vec3(0.15, 1.0, 0.45), vec3(0.55, 0.25, 0.85), smoothstep(0.35, 1.0, f));
 		float fade = (1.0 - f) * (1.0 - f) * smoothstep(0.0, 0.08, f + 0.02);
