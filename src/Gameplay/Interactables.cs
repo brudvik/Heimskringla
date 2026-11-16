@@ -15,6 +15,9 @@ public interface IHittable
 {
     string HitPrompt(ToolKind tool);
     void Hit(Player p, ToolKind tool);
+    string TargetName { get; }
+    /// <summary>1 = urørt, 0 = ødelagt.</summary>
+    float HealthFraction { get; }
 }
 
 public static class Interactables
@@ -33,6 +36,7 @@ public static class Interactables
         {
             PropRole.Tree => new TreeNode { Def = def, Inst = inst, Manager = owner },
             PropRole.Rock => new RockNode { Def = def, Inst = inst, Manager = owner },
+            PropRole.Obstacle => new StaticBody3D(),
             _ => new PropPickup { Def = def, Inst = inst, Manager = owner },
         };
         body.Position = inst.Pos;
@@ -54,6 +58,13 @@ public static class Interactables
             shape = new CylinderShape3D { Radius = def.TrunkRadius * s, Height = h };
             offset = new Vector3(0, h * 0.5f, 0);
             body.CollisionLayer = Game.LayerWorld | Game.LayerInteract;
+        }
+        else if (def.Role == PropRole.Obstacle)
+        {
+            var size = aabb.Size * s * 0.85f;
+            shape = new BoxShape3D { Size = size };
+            offset = aabb.GetCenter() * s;
+            body.CollisionLayer = Game.LayerWorld;
         }
         else if (def.Role == PropRole.Rock)
         {
@@ -93,23 +104,57 @@ public partial class TreeNode : StaticBody3D, IHittable
         }
         if (_hp < 0) _hp = Def.Hp;
         _hp--;
-        var top = GlobalPosition + new Vector3(0, 1.2f, 0);
-        Effects.Burst(GetParent(), top, new Color(0.75f, 0.6f, 0.4f), 10);
+        // Treffpunkt på stammen, på siden mot spilleren
+        var toPlayer = p.GlobalPosition - GlobalPosition;
+        toPlayer.Y = 0;
+        toPlayer = toPlayer.LengthSquared() > 0.001f ? toPlayer.Normalized() : Vector3.Back;
+        float r = Def.TrunkRadius * Inst.Scale;
+        var hitPos = GlobalPosition + new Vector3(0, 1.0f, 0) + toPlayer * r;
+        Effects.Burst(GetParent(), hitPos, new Color(0.82f, 0.68f, 0.45f), 14, 0.15f);     // spon
+        Effects.Burst(GetParent(), GlobalPosition + new Vector3(0, Def.Variant(Inst.Variant).Aabb.End.Y * Inst.Scale * 0.75f, 0),
+            new Color(0.35f, 0.55f, 0.2f), 10, 1.8f, 0.6f);                                   // løv som drysser
+        p.AddShake(0.28f);
+        AddNotch(toPlayer, r);
+        // Treet rister (mer jo nærmere det er å falle)
         var mesh = GetNode<Node3D>("Mesh");
+        float amp = 0.03f + 0.05f * (1f - HealthFraction);
         var tw = CreateTween();
-        tw.TweenProperty(mesh, "rotation", new Vector3(0.04f, 0, 0.03f), 0.05);
-        tw.TweenProperty(mesh, "rotation", Vector3.Zero, 0.15);
+        tw.TweenProperty(mesh, "rotation", new Vector3(-toPlayer.Z * amp, 0, toPlayer.X * amp), 0.05);
+        tw.TweenProperty(mesh, "rotation", new Vector3(toPlayer.Z * amp * 0.5f, 0, -toPlayer.X * amp * 0.5f), 0.1);
+        tw.TweenProperty(mesh, "rotation", Vector3.Zero, 0.2);
         if (_hp > 0) return;
 
         Manager.OnHarvested(Inst);
         var dir = GlobalPosition - p.GlobalPosition;
         dir.Y = 0;
         dir = dir.LengthSquared() > 0.001f ? dir.Normalized() : Vector3.Forward;
-        var fall = new FallingTree { Def = Def, Variant = Def.Variant(Inst.Variant), ScaleF = Inst.Scale, FallDir = dir };
+        var fall = new FallingTree { Def = Def, Variant = Def.Variant(Inst.Variant), ScaleF = Inst.Scale, FallDir = dir, Watcher = p };
         GetParent().AddChild(fall);
-        fall.GlobalTransform = GlobalTransform;
+        // Start litt over stubben så de ikke kolliderer
+        fall.GlobalTransform = GlobalTransform.Translated(new Vector3(0, 0.55f * Inst.Scale, 0));
         Hud.Instance?.Toast($"{Def.Name} faller!");
         QueueFree();
+    }
+
+    public string TargetName => Def.Name;
+    public float HealthFraction => _hp < 0 ? 1f : Mathf.Clamp(_hp / (float)Def.Hp, 0f, 1f);
+
+    private MeshInstance3D _notch;
+    private static StandardMaterial3D _notchMat;
+
+    /// <summary>Synlig hogg i stammen som vokser for hvert slag.</summary>
+    private void AddNotch(Vector3 toPlayer, float radius)
+    {
+        _notchMat ??= new StandardMaterial3D { AlbedoColor = new Color(0.86f, 0.72f, 0.5f), Roughness = 0.9f };
+        if (_notch == null)
+        {
+            _notch = new MeshInstance3D { Mesh = new PrismMesh { Size = new Vector3(1, 1, 1), LeftToRight = 0.5f, Material = _notchMat } };
+            AddChild(_notch);
+        }
+        float depth = radius * (0.35f + 0.9f * (1f - HealthFraction));
+        _notch.GlobalPosition = GlobalPosition + new Vector3(0, 1.0f, 0) + toPlayer * (radius - depth * 0.45f);
+        _notch.GlobalBasis = Basis.LookingAt(-toPlayer, Vector3.Up) * new Basis(Vector3.Right, Mathf.Pi / 2f);
+        _notch.Scale = new Vector3(radius * 1.3f, depth, 0.28f);
     }
 }
 
@@ -132,14 +177,26 @@ public partial class RockNode : StaticBody3D, IHittable
         }
         if (_hp < 0) _hp = Def.Hp;
         _hp--;
-        Effects.Burst(GetParent(), GlobalPosition + new Vector3(0, Def.Variant(Inst.Variant).Aabb.End.Y * Inst.Scale * 0.7f, 0), new Color(0.55f, 0.54f, 0.5f), 12);
+        var top = GlobalPosition + new Vector3(0, Def.Variant(Inst.Variant).Aabb.End.Y * Inst.Scale * 0.7f, 0);
+        Effects.Burst(GetParent(), top, new Color(0.55f, 0.54f, 0.5f), 16, 0.4f);
+        Effects.Burst(GetParent(), top, new Color(1f, 0.85f, 0.5f), 5, 0.2f, 0.3f);      // gnister
+        p.AddShake(0.22f);
         int got = Def.ItemsOnHit + (_hp <= 0 ? Def.ItemsOnBreak : 0);
         Inventory.Add(Def.Item, got);
-        Hud.Instance?.Toast($"+{got} {Def.Item}");
+        // Steinen krymper og skjelver for hvert slag
+        var mesh = GetNode<Node3D>("Mesh");
+        var baseScale = Vector3.One * Inst.Scale * (0.55f + 0.45f * HealthFraction);
+        var tw = CreateTween();
+        tw.TweenProperty(mesh, "scale", baseScale * 0.94f, 0.05);
+        tw.TweenProperty(mesh, "scale", baseScale, 0.12);
         if (_hp > 0) return;
+        Effects.Burst(GetParent(), GlobalPosition + new Vector3(0, 0.5f, 0), new Color(0.6f, 0.58f, 0.54f), 40, 1.2f);
         Manager.OnHarvested(Inst);
         QueueFree();
     }
+
+    public string TargetName => Def.Name;
+    public float HealthFraction => _hp < 0 ? 1f : Mathf.Clamp(_hp / (float)Def.Hp, 0f, 1f);
 }
 
 public partial class PropPickup : StaticBody3D, IInteractable
@@ -153,7 +210,6 @@ public partial class PropPickup : StaticBody3D, IInteractable
     public void Interact(Player p)
     {
         Inventory.Add(Def.Item, 1);
-        Hud.Instance?.Toast($"+1 {Def.Item}");
         Manager.OnHarvested(Inst);
         QueueFree();
     }
@@ -196,7 +252,6 @@ public partial class LooseItem : RigidBody3D, IInteractable
     public void Interact(Player p)
     {
         Inventory.Add(Def.Item, 1);
-        Hud.Instance?.Toast($"+1 {Def.Item}");
         QueueFree();
     }
 }
@@ -208,8 +263,10 @@ public partial class FallingTree : RigidBody3D
     public ModelVariant Variant;
     public float ScaleF = 1f;
     public Vector3 FallDir = Vector3.Forward;
+    public Player Watcher;
     private float _t;
     private bool _pushed;
+    private bool _landed;
     private float TrunkLength => Variant.Aabb.End.Y * ScaleF * 0.75f;
 
     public override void _Ready()
@@ -234,9 +291,23 @@ public partial class FallingTree : RigidBody3D
         {
             _pushed = true;
             float h = TrunkLength;
-            ApplyImpulse(FallDir * Mass * 1.2f, GlobalBasis * new Vector3(0, h * 0.8f, 0));
+            // Et lite dytt; tyngdekraften gjør resten (treet akselererer mens det faller)
+            ApplyImpulse(FallDir * Mass * 0.45f, GlobalBasis * new Vector3(0, h * 0.9f, 0));
         }
-        if (_t < 3.2f) return;
+        // Nedslag: når treet ligger nesten flatt
+        if (!_landed && _t > 0.5f && GlobalBasis.Y.Normalized().Y < 0.35f)
+        {
+            _landed = true;
+            var lAxis = GlobalBasis.Y.Normalized();
+            Effects.Burst(GetParent(), GlobalPosition + lAxis * TrunkLength * 0.6f, new Color(0.55f, 0.5f, 0.4f), 40, TrunkLength * 0.3f, 1.2f);
+            Effects.Burst(GetParent(), GlobalPosition + lAxis * TrunkLength * 0.85f, new Color(0.3f, 0.5f, 0.2f), 40, 2.5f, 1.0f);
+            if (Watcher != null && IsInstanceValid(Watcher))
+            {
+                float d = Watcher.GlobalPosition.DistanceTo(GlobalPosition + lAxis * TrunkLength * 0.5f);
+                Watcher.AddShake(Mathf.Clamp(0.7f - d / 40f, 0f, 0.6f));
+            }
+        }
+        if (_t < (_landed ? 3.4f : 6f)) return;
 
         var axis = GlobalBasis.Y.Normalized();
         var basePos = GlobalPosition;
@@ -271,7 +342,7 @@ public static class Effects
     private static StandardMaterial3D _mat;
 
     /// <summary>Liten partikkelsky (flis, steinsprut, løv).</summary>
-    public static void Burst(Node parent, Vector3 pos, Color color, int amount, float spread = 0.6f)
+    public static void Burst(Node parent, Vector3 pos, Color color, int amount, float spread = 0.6f, float speed = 1f)
     {
         _mat ??= new StandardMaterial3D { VertexColorUseAsAlbedo = true, ShadingMode = BaseMaterial3D.ShadingModeEnum.PerVertex };
         var p = new CpuParticles3D
@@ -286,8 +357,8 @@ public static class Effects
             EmissionSphereRadius = spread,
             Direction = Vector3.Up,
             Spread = 70f,
-            InitialVelocityMin = 1.5f,
-            InitialVelocityMax = 4f,
+            InitialVelocityMin = 1.5f * speed,
+            InitialVelocityMax = 4f * speed,
             Gravity = new Vector3(0, -9.8f, 0),
             Color = color,
         };

@@ -17,6 +17,9 @@ public static class Game
     /// <summary>Punktet systemene strømmer rundt (spiller eller kamera i flymodus).</summary>
     public static Vector3 Focus;
 
+    /// <summary>Autotest kjører: ikke fang musa og ikke reager på brukerinput (brukeren jobber i andre vinduer).</summary>
+    public static bool AutoTest;
+
     // Kollisjonslag (bitmasker)
     public const uint LayerWorld = 1;        // terreng, trær, steinblokker
     public const uint LayerInteract = 2;     // alt som kan høstes/plukkes

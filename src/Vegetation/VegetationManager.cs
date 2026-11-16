@@ -29,6 +29,7 @@ public partial class VegetationManager : Node3D
         public MultiMeshInstance3D[][] Mmi; // [type][variant]
         public int Band = -1;
         public int LastDistStep = -1;
+        public readonly List<Node3D> Stumps = new();
         public bool Ready;
         public JobQueue.Job Job;
     }
@@ -141,6 +142,12 @@ public partial class VegetationManager : Node3D
                 cell.Mmi[k][v] = mmi;
             }
         }
+        // Stubber etter trær som er felt tidligere (fra lagring)
+        foreach (var list in lists)
+            foreach (var inst in list)
+                if (inst.Removed && PropLibrary.Defs[(int)inst.Kind].Role == PropRole.Tree)
+                    AddStump(cell, inst);
+
         cell.Ready = true;
         cell.Band = -1;
         float dist = CellDistance(cell.X, cell.Z, Game.Focus);
@@ -191,6 +198,8 @@ public partial class VegetationManager : Node3D
                         inst.Node = null;
                         _promoted.Remove(inst);
                     }
+        foreach (var st in cell.Stumps) st.QueueFree();
+        cell.Stumps.Clear();
         if (cell.Mmi != null)
             foreach (var arr in cell.Mmi)
                 if (arr != null) foreach (var m in arr) m?.QueueFree();
@@ -208,7 +217,9 @@ public partial class VegetationManager : Node3D
         foreach (var inst in _promoted)
         {
             float dx = inst.Pos.X - p.X, dz = inst.Pos.Z - p.Z;
-            if (dx * dx + dz * dz > dr2) demote.Add(inst);
+            float extra = PropLibrary.Defs[(int)inst.Kind].Role == PropRole.Obstacle ? 30f : 0f;
+            float r = DemoteRadius + extra;
+            if (dx * dx + dz * dz > r * r) demote.Add(inst);
         }
         foreach (var inst in demote) Demote(inst);
 
@@ -217,15 +228,17 @@ public partial class VegetationManager : Node3D
         for (int dx = -1; dx <= 1; dx++)
         {
             if (!_cells.TryGetValue((pcx + dx, pcz + dz), out var cell) || !cell.Ready) continue;
-            if (CellDistance(cell.X, cell.Z, p) > PromoteRadius) continue;
+            if (CellDistance(cell.X, cell.Z, p) > PromoteRadius + 30f) continue;
             for (int k = 0; k < cell.ByKind.Length; k++)
             {
-                if (PropLibrary.Defs[k].Role == PropRole.Decor) continue;
+                var role = PropLibrary.Defs[k].Role;
+                if (role == PropRole.Decor) continue;
+                float r = PromoteRadius + (role == PropRole.Obstacle ? 30f : 0f);
                 foreach (var inst in cell.ByKind[k])
                 {
                     if (inst.Removed || inst.Node != null) continue;
                     float ix = inst.Pos.X - p.X, iz = inst.Pos.Z - p.Z;
-                    if (ix * ix + iz * iz < pr2) Promote(cell, inst);
+                    if (ix * ix + iz * iz < r * r) Promote(cell, inst);
                 }
             }
         }
@@ -253,8 +266,28 @@ public partial class VegetationManager : Node3D
     }
 
     /// <summary>Kalles når et objekt er høstet/plukket. Noden fjerner seg selv.</summary>
+    private void AddStump(VegCell cell, PropInstance inst)
+    {
+        var mesh = inst.Cold ? PropLibrary.StumpSnowMesh : PropLibrary.StumpMesh;
+        if (mesh == null) return;
+        var def = PropLibrary.Defs[(int)inst.Kind];
+        float r = def.TrunkRadius * inst.Scale * 1.25f;
+        var body = new StaticBody3D
+        {
+            Position = inst.Pos + new Vector3(0, def.Sink * inst.Scale * 0.5f, 0),
+            Rotation = new Vector3(0, inst.Yaw, 0),
+            CollisionLayer = Game.LayerWorld,
+            CollisionMask = 0,
+        };
+        body.AddChild(new MeshInstance3D { Mesh = mesh, Scale = Vector3.One * (r / 0.6f), VisibilityRangeEnd = 250f });
+        body.AddChild(new CollisionShape3D { Shape = new CylinderShape3D { Radius = r, Height = 0.6f * r / 0.6f }, Position = new Vector3(0, 0.3f * r / 0.6f, 0) });
+        AddChild(body);
+        cell.Stumps.Add(body);
+    }
+
     public void OnHarvested(PropInstance inst)
     {
+        if (PropLibrary.Defs[(int)inst.Kind].Role == PropRole.Tree && inst.Cell is VegCell vc) AddStump(vc, inst);
         inst.Removed = true;
         inst.Node = null;
         _promoted.Remove(inst);

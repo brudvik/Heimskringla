@@ -10,7 +10,9 @@ namespace Heimskringla.Gameplay;
 /// </summary>
 public partial class CharacterModel : PlayerVisual
 {
-    public const string BodyPath = "res://assets/characters/Superhero_Male_FullBody.gltf";
+    public const string OutfitPath = "res://assets/outfits/Male_Peasant.gltf";
+    public const string BasePath = "res://assets/characters/Superhero_Male_FullBody.gltf";
+    public static string BodyPath => ResourceLoader.Exists(OutfitPath) ? OutfitPath : BasePath;
     public const string AnimPath = "res://assets/animations/UAL1_Standard.glb";
     private static readonly string[] HairPaths =
     {
@@ -109,6 +111,40 @@ public partial class CharacterModel : PlayerVisual
         _axe = LoadTool("res://assets/survival/tool-axe.glb", grip);
         _pick = LoadTool("res://assets/survival/tool-pickaxe.glb", grip);
         SetTool(ToolKind.Axe);
+
+        SetupFootIK(skel);
+    }
+
+    private FootPlacement _feet;
+    private TwoBoneIK3D _ik;
+    private float _ikWeight;
+
+    /// <summary>Fotplassering (egen modifikator) + TwoBoneIK3D for begge ben.</summary>
+    private void SetupFootIK(Skeleton3D skel)
+    {
+        if (skel.FindBone("thigh_l") < 0) return;
+        var tl = new Marker3D { Name = "FootTargetL" }; var tr = new Marker3D { Name = "FootTargetR" };
+        var pl = new Marker3D { Name = "KneePoleL" }; var pr = new Marker3D { Name = "KneePoleR" };
+        foreach (var m in new[] { tl, tr, pl, pr }) { AddChild(m); m.TopLevel = true; }
+
+        _feet = new FootPlacement { Name = "FootPlacement", Body = this, TargetL = tl, TargetR = tr, PoleL = pl, PoleR = pr };
+        skel.AddChild(_feet);
+        _feet.Footstep += (side, pos, yaw) => RaiseFootstep(side, pos, yaw);
+
+        _ik = new TwoBoneIK3D { Name = "LegIK" };
+        skel.AddChild(_ik);
+        _ik.Set("setting_count", 2);
+        string[] sides = { "l", "r" };
+        Marker3D[] targets = { tl, tr }, poles = { pl, pr };
+        for (int i = 0; i < 2; i++)
+        {
+            _ik.Set($"settings/{i}/root_bone_name", $"thigh_{sides[i]}");
+            _ik.Set($"settings/{i}/middle_bone_name", $"calf_{sides[i]}");
+            _ik.Set($"settings/{i}/end_bone_name", $"foot_{sides[i]}");
+            _ik.Set($"settings/{i}/target_node", _ik.GetPathTo(targets[i]));
+            _ik.Set($"settings/{i}/pole_node", _ik.GetPathTo(poles[i]));
+        }
+        _ik.Influence = 0f;
     }
 
     private static Node3D LoadTool(string path, Node3D parent)
@@ -129,7 +165,7 @@ public partial class CharacterModel : PlayerVisual
 
     public override void PlayPickup() => _pickupTimer = 0.6f;
 
-    public override string DebugState => $"anim={_anim.CurrentAnimation} playing={_anim.IsPlaying()} pos={_anim.CurrentAnimationPosition:F2} cur={_current}";
+    public override string DebugState => $"anim={_anim.CurrentAnimation} playing={_anim.IsPlaying()} pos={_anim.CurrentAnimationPosition:F2} cur={_current} | {_feet?.DebugInfo} {_feet?.HeightInfo} ikInfl={_ik?.Influence:F2} ikActive={_ik?.Active}";
 
     private void Play(string name, float speed, float blend = 0.2f)
     {
@@ -144,6 +180,15 @@ public partial class CharacterModel : PlayerVisual
     public override void Animate(float speed, bool grounded, bool swimming, float swing, float dt)
     {
         _pickupTimer -= dt;
+        // Fotplassering bare når vi står/går på bakken
+        float want = grounded && !swimming ? 1f : 0f;
+        _ikWeight = Mathf.MoveToward(_ikWeight, want, dt * 5f);
+        if (_feet != null)
+        {
+            _feet.Weight = _ikWeight;
+            _feet.ExcludeRid = OwnerRid;
+            _ik.Influence = _ikWeight;
+        }
         bool swinging = swing >= 0f;
         if (swinging && !_wasSwinging)
         {
@@ -162,6 +207,8 @@ public partial class CharacterModel : PlayerVisual
             Play("Interact", 1.6f, 0.1f);
         else if (speed < 0.4f)
             Play("Idle_Loop", 1f);
+        else if (speed < 3f)
+            Play("Walk_Loop", Mathf.Clamp(speed / 1.6f, 0.6f, 1.6f));
         else if (speed < 6f)
             Play("Jog_Fwd_Loop", Mathf.Clamp(speed / 4.2f, 0.6f, 1.4f));
         else

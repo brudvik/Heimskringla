@@ -13,6 +13,14 @@ namespace Heimskringla.World;
 ///
 /// Dette er "terreng-sampling"-grensesnittet: en fremtidig voxel-renderer kan bruke samme kilde.
 /// </summary>
+/// <summary>Et bratt elvesteg (stryk eller fossefall) fra Top til Bottom.</summary>
+public struct Cascade
+{
+    public Vector3 Top, Bottom;
+    public float Width;
+    public float Steep;   // fall per meter (1 = 45°)
+}
+
 public sealed class WorldGenerator
 {
     public const float NoWater = -10000f;
@@ -25,6 +33,7 @@ public sealed class WorldGenerator
     // Grovkart (N*N, radvis: idx = j*N + i, x = -Half + i*Cell, z = -Half + j*Cell)
     public float[] Height;     // terrenghøyde etter elveutgraving
     public float[] Water;      // vannflate for innsjøer/elver (NoWater der det ikke er vann)
+    public float[] FlowX, FlowZ; // elvestrøm (m/s) i vannceller, til vannshaderen
     public float[] Temp;       // 0..1
     public float[] Moist;      // 0..1
     public float[] DetailAmp;  // amplitude for detaljstøy
@@ -32,10 +41,13 @@ public sealed class WorldGenerator
     public int MapSize => N - 1;
     public string Report = "";
     public int RiverCells;
+    /// <summary>Stryk og fossefall: bratte elvestrekninger (fra celle til neste celle nedstrøms).</summary>
+    public readonly List<Cascade> Cascades = new();
+    private int[] _down;
     public int LakeCells;
 
     private readonly FastNoiseLite _warp, _cont, _hill, _mmask, _ridge, _temp, _moist;
-    private readonly FastNoiseLite _detail, _detailFine, _border, _color;
+    private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail;
 
     private WorldGenerator(int seed)
     {
@@ -52,6 +64,7 @@ public sealed class WorldGenerator
         _detailFine = MakeNoise(seed + 9, 1f / 9f, 2);
         _border = MakeNoise(seed + 10, 1f / 35f, 2);
         _color = MakeNoise(seed + 11, 1f / 25f, 2);
+        _trail = MakeNoise(seed + 12, 1f / 420f, 2);
     }
 
     private static FastNoiseLite MakeNoise(int seed, float freq, int octaves)
@@ -93,6 +106,26 @@ public sealed class WorldGenerator
                 h[j * N + i] = BaseHeight(-Half + i * Cell, z);
         });
         Step("Grunnhøyde");
+
+        progress("Isbreer graver U-daler og fjorder...");
+        CarveGlacialValleys(h);
+        Step("U-daler/fjorder");
+
+        progress("Eroderer fjell og daler (vann)...");
+        Erosion.Thermal(h, N, 14f, 4);
+        Erosion.Hydraulic(h, N, Seed * 31 + 7, new Erosion.Settings(),
+            f => progress($"Eroderer fjell og daler (vann)... {f * 100:F0} %"));
+        progress("Eroderer skrenter (ras)...");
+        Erosion.Thermal(h, N, 11f, 6);
+        Step("Erosjon");
+
+        // Slakere kyst: flat ut de nederste metrene over havet, så det blir strender
+        for (int k = 0; k < count; k++)
+        {
+            float hk = h[k];
+            if (hk > 0f && hk < 8f) h[k] = 8f * MathF.Pow(hk / 8f, 1.7f);
+            else if (hk < 0f && hk > -5f) h[k] = -5f * MathF.Pow(-hk / 5f, 1.4f);
+        }
 
         progress("Fyller senkninger (innsjøer)...");
         float[] filled = PriorityFlood(h);
@@ -171,6 +204,56 @@ public sealed class WorldGenerator
         Water = water;
         Step("Vannflater");
 
+        // Strømretning: ned langs vannflaten (eller den fylte terrengflaten), fart etter helning og vannføring
+        progress("Beregner strøm i elvene...");
+        var fx = new float[count];
+        var fz = new float[count];
+        for (int j = 1; j < N - 1; j++)
+        for (int i = 1; i < N - 1; i++)
+        {
+            int c = j * N + i;
+            if (water[c] <= NoWater) continue;
+            float S(int k) => water[k] > NoWater ? water[k] : filled[k];
+            float gx = (S(c + 1) - S(c - 1)) / (2f * Cell);
+            float gz = (S(c + N) - S(c - N)) / (2f * Cell);
+            float slope = MathF.Sqrt(gx * gx + gz * gz);
+            if (slope < 1e-5f) continue;
+            float river = acc[c] >= WorldSettings.RiverThreshold ? MathF.Min(0.5f + MathF.Log2(acc[c] / WorldSettings.RiverThreshold) * 0.12f, 1.2f) : 0f;
+            float speed = MathF.Min(MathF.Max(slope * 45f, river), 3f);
+            fx[c] = -gx / slope * speed;
+            fz[c] = -gz / slope * speed;
+        }
+        FlowX = BoxBlur(fx, 1);
+        FlowZ = BoxBlur(fz, 1);
+        Step("Strøm");
+
+        // Stryk og fossefall: bratte elvesteg mellom en celle og den neste nedstrøms
+        progress("Finner fossefall...");
+        float Surface(int k) => MathF.Max(Height[k] + 0.25f, water[k] > NoWater ? water[k] : float.MinValue);
+        for (int j = 2; j < N - 2; j++)
+        for (int i = 2; i < N - 2; i++)
+        {
+            int c = j * N + i;
+            if (acc[c] < WorldSettings.RiverThreshold || h[c] <= 0f) continue;
+            int d = _down[c];
+            if (d < 0) continue;
+            float top = Surface(c), bottom = Surface(d);
+            if (bottom < 0f) bottom = 0f;                      // ut i havet
+            float drop = top - bottom;
+            float run = (d - c == 1 || d - c == -1 || d - c == N || d - c == -N) ? Cell : Cell * 1.4142f;
+            if (drop < 1.2f) continue;
+            float sz = MathF.Log2(acc[c] / WorldSettings.RiverThreshold);
+            float width = (sz > 4.5f ? 5f : sz > 2.3f ? 3f : 1.6f) * Cell * 0.55f;
+            Cascades.Add(new Cascade
+            {
+                Top = new Vector3(-Half + i * Cell, top, -Half + j * Cell),
+                Bottom = new Vector3(-Half + (d % N) * Cell, bottom, -Half + (d / N) * Cell),
+                Width = width,
+                Steep = drop / run,
+            });
+        }
+        Step($"Fossefall ({Cascades.Count})");
+
         // Klima
         progress("Beregner klima...");
         var wetFar = BoxBlur(BoxBlur(wetMask, 8), 8);
@@ -194,7 +277,7 @@ public sealed class WorldGenerator
                 Temp[k] = Math.Clamp(t, 0f, 1f);
                 float m = 0.47f + _moist.GetNoise(x, z) * 0.55f + MathF.Min(wetFar[k] * 2.5f, 0.35f) + coast[k] * 0.12f;
                 Moist[k] = Math.Clamp(m, 0f, 1f);
-                float amp = (1.0f + 7f * Biomes.SmoothStep(60f, 220f, hh)) * (0.25f + 0.75f * Biomes.SmoothStep(1f, 8f, hh));
+                float amp = (2.2f + 4.5f * Biomes.SmoothStep(60f, 220f, hh)) * (0.25f + 0.75f * Biomes.SmoothStep(1f, 8f, hh));
                 amp *= 1f - 0.9f * MathF.Min(wetNear[k] * 2f, 1f);
                 DetailAmp[k] = amp;
             }
@@ -219,11 +302,120 @@ public sealed class WorldGenerator
         float h = c < 0f ? MathF.Max(c * 130f, -70f) : c * 70f;
 
         h += _hill.GetNoise(wx, wz) * 20f * land;
+        // Mellomskala koller og søkk, så lavlandet ikke blir flatt
+        h += _hill.GetNoise(wx * 3.7f + 3100f, wz * 3.7f - 1700f) * 4.5f * land;
 
         float mm = Biomes.SmoothStep(0.05f, 0.45f, _mmask.GetNoise(wx, wz) * 0.8f + c * 0.6f);
         float rn = (_ridge.GetNoise(wx, wz) + 1f) * 0.5f;
-        h += rn * rn * 390f * mm * land;
+        // Bred fjellfot (massiv) + skarpe rygger på toppen
+        h += mm * land * 90f;
+        h += MathF.Pow(rn, 2.4f) * 330f * mm * land;
         return h;
+    }
+
+    /// <summary>
+    /// Isbreer: de store dalførene i fjellet graves ut med U-profil (flat bunn, bratte sider).
+    /// Dalbunnen ligger "dybde" under det vannfylte nivået, så daler som når kysten blir fjorder.
+    /// </summary>
+    private void CarveGlacialValleys(float[] h)
+    {
+        int count = N * N;
+        float[] f = PriorityFlood(h);
+        float[] acc = FlowAccumulation(h, f);
+
+        // Lokalt relieff (forskjell til høyeste punkt innen ~400 m) avgjør om det er fjell rundt
+        var localMax = MaxFilter(h, 40);
+
+        const float minAcc = 1200f;
+        var srcFloor = new float[count];
+        var srcWidth = new float[count];
+        var nearest = new int[count];
+        var dist = new float[count];
+        Array.Fill(nearest, -1);
+        Array.Fill(dist, float.MaxValue);
+        int sources = 0;
+        for (int k = 0; k < count; k++)
+        {
+            if (acc[k] < minAcc || h[k] < -5f) continue;
+            float relief = localMax[k] - h[k];
+            float strength = Biomes.SmoothStep(90f, 260f, relief);
+            if (strength <= 0.02f) continue;
+            float s = MathF.Log2(acc[k] / minAcc);
+            float depth = MathF.Min(30f + s * 16f, 120f) * strength;
+            srcFloor[k] = f[k] - depth;
+            srcWidth[k] = (14f + s * 4.5f) * (0.6f + 0.4f * strength);   // halv bredde i celler
+            nearest[k] = k;
+            dist[k] = 0f;
+            sources++;
+        }
+        if (sources == 0) return;
+
+        // Chamfer-avstandstransform: hver celle får nærmeste dalbunn-celle
+        const float D1 = 1f, D2 = 1.41421f;
+        void Relax(int c, int n, float w)
+        {
+            if (nearest[n] < 0) return;
+            float d = dist[n] + w;
+            if (d < dist[c]) { dist[c] = d; nearest[c] = nearest[n]; }
+        }
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int j = 1; j < N - 1; j++)
+            for (int i = 1; i < N - 1; i++)
+            {
+                int c = j * N + i;
+                Relax(c, c - 1, D1); Relax(c, c - N, D1); Relax(c, c - N - 1, D2); Relax(c, c - N + 1, D2);
+            }
+            for (int j = N - 2; j >= 1; j--)
+            for (int i = N - 2; i >= 1; i--)
+            {
+                int c = j * N + i;
+                Relax(c, c + 1, D1); Relax(c, c + N, D1); Relax(c, c + N + 1, D2); Relax(c, c + N - 1, D2);
+            }
+        }
+
+        Parallel.For(0, count, k =>
+        {
+            int s = nearest[k];
+            if (s < 0) return;
+            float w = srcWidth[s];
+            float t = dist[k] / w;
+            if (t >= 1f) return;
+            float floor = srcFloor[s];
+            if (h[k] <= floor) return;
+            float profile = MathF.Pow(t, 2.4f);              // U-form: flat bunn, bratte sider
+            float carved = floor + (h[k] - floor) * profile;
+            h[k] = MathF.Min(h[k], carved);
+        });
+    }
+
+    /// <summary>Separabelt maksfilter med gitt radius (i celler).</summary>
+    private float[] MaxFilter(float[] src, int radius)
+    {
+        var tmp = new float[src.Length];
+        var dst = new float[src.Length];
+        Parallel.For(0, N, j =>
+        {
+            int row = j * N;
+            for (int i = 0; i < N; i++)
+            {
+                float m = float.MinValue;
+                int a = Math.Max(0, i - radius), b = Math.Min(N - 1, i + radius);
+                for (int x = a; x <= b; x++) m = MathF.Max(m, src[row + x]);
+                tmp[row + i] = m;
+            }
+        });
+        Parallel.For(0, N, i =>
+        {
+            for (int j = 0; j < N; j++)
+            {
+                float m = float.MinValue;
+                int a = Math.Max(0, j - radius), b = Math.Min(N - 1, j + radius);
+                for (int y = a; y <= b; y++) m = MathF.Max(m, tmp[y * N + i]);
+                dst[j * N + i] = m;
+            }
+        });
+        return dst;
     }
 
     /// <summary>Barnes et al. priority-flood: fyller senkninger slik at alt vann kan renne til havet.</summary>
@@ -295,6 +487,7 @@ public sealed class WorldGenerator
             int d = down[c];
             if (d >= 0) acc[d] += acc[c];
         }
+        _down = down;
         return acc;
     }
 
@@ -401,7 +594,7 @@ public sealed class WorldGenerator
     {
         float hc = SampleBicubic(Height, x, z);
         float amp = SampleBilinear(DetailAmp, x, z);
-        return hc + (_detail.GetNoise(x, z) + _detailFine.GetNoise(x, z) * 0.12f) * amp;
+        return hc + (_detail.GetNoise(x, z) + _detailFine.GetNoise(x, z) * 0.18f) * amp;
     }
 
     public Vector3 GetNormal(float x, float z, float e = 1f)
@@ -415,8 +608,24 @@ public sealed class WorldGenerator
     public float GetMoist(float x, float z) => SampleBilinear(Moist, x, z) + _border.GetNoise(x + 913f, z) * 0.05f;
     public float ColorNoise(float x, float z) => _color.GetNoise(x, z);
 
+    /// <summary>
+    /// Dyretråkk: smale, buktende stier (0 = ingen, 1 = midt i tråkket) langs nullkurven til en støy.
+    /// Bare på tørt, slakt land under tregrensen.
+    /// </summary>
+    public float TrailMask(float x, float z, float h, float ny)
+    {
+        if (h < 2.5f || h > 150f || ny < 0.86f) return 0f;
+        float wx = x + _warp.GetNoise(x * 3f, z * 3f) * 60f;
+        float n = MathF.Abs(_trail.GetNoise(wx, z));
+        float m = 1f - Biomes.SmoothStep(0.0035f, 0.008f, n);
+        return m * Biomes.SmoothStep(0.86f, 0.93f, ny);
+    }
+
     /// <summary>Lavfrekvent støy som gir skogholt og lysninger (-1..1).</summary>
     public float ForestClump(float x, float z) => _hill.GetNoise(x * 7.7f + 1234f, z * 7.7f - 987f);
+
+    /// <summary>Elvestrøm (m/s, xz) på punktet.</summary>
+    public Vector2 SampleFlow(float x, float z) => new(SampleBilinear(FlowX, x, z), SampleBilinear(FlowZ, x, z));
 
     /// <summary>Vannflate for innsjø/elv på punktet (NoWater hvis ingen). Havet (0 m) håndteres separat.</summary>
     public float GetLakeWater(float x, float z)

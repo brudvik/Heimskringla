@@ -5,11 +5,11 @@ using Heimskringla.Core;
 
 namespace Heimskringla.Vegetation;
 
-public enum PropKind { Spruce, Pine, Birch, Oak, DeadTree, Bush, Fern, Flower, Mushroom, Boulder, Stone, Branch, Log }
+public enum PropKind { Spruce, Pine, Birch, Oak, DeadTree, Bush, Fern, Flower, Mushroom, Boulder, Stone, Branch, Cliff, Driftwood, Log }
 
 public enum ToolKind { Hands, Axe, Pickaxe }
 
-public enum PropRole { Decor, Tree, Rock, Pickup }
+public enum PropRole { Decor, Tree, Rock, Pickup, Obstacle }
 
 public sealed class PropDef
 {
@@ -17,6 +17,8 @@ public sealed class PropDef
     public string Name;
     public PropRole Role;
     public ModelVariant[] Variants;
+    /// <summary>Indeks der snø/kulde-variantene starter (-1 = ingen). Velges i kalde soner.</summary>
+    public int ColdStart = -1;
     public float MaxDistance = 950f;   // vises ikke lenger unna enn dette
     public float MinScale = 0.85f, MaxScale = 1.2f;
     public float Sink;                  // hvor mye den senkes i bakken (m, før skala)
@@ -42,6 +44,9 @@ public sealed class PropDef
 public static class PropLibrary
 {
     public const string Nature = "res://assets/nature/";
+    public const string LowPoly = "res://assets/nature_lowpoly/";
+    public const string KenneyNature = "res://assets/kenney_nature/";
+    public static Mesh StumpMesh, StumpSnowMesh;
     public static PropDef[] Defs;
     public static Mesh GrassMesh;
     public static int MaxVariants;
@@ -148,6 +153,28 @@ public static class PropLibrary
             d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Stein"; d.CastShadow = false;
         });
 
+        // ---------- Klippeformasjoner: Kenney-former + store MegaKit-steiner, felles steinshader
+        var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
+        var cliffs = new List<ModelVariant>();
+        foreach (var c in new[] { "A", "B", "C", "D", "G", "H", "I" })
+            cliffs.Add(ModelLibrary.Variant(KenneyNature + $"stone_tall{c}.glb", 11f));
+        foreach (var c in new[] { "B", "D", "F" })
+            cliffs.Add(ModelLibrary.Variant(KenneyNature + $"stone_large{c}.glb", 14f));
+        cliffs.AddRange(ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 3.2f));
+        cliffs.RemoveAll(v => v == null);
+        foreach (var v in cliffs) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
+        Def(PropKind.Cliff, "Klippe", PropRole.Obstacle, cliffs, proc.Boulder, d =>
+        {
+            d.MaxDistance = 1000f; d.MinScale = 1.0f; d.MaxScale = 1.9f; d.Sink = 0.3f;
+        });
+
+        // ---------- Drivved på strendene (gir tømmer)
+        // Bruker samme barkteksturerte stokk som tømmerstokkene, bare større og bleket
+        Def(PropKind.Driftwood, "Drivved", PropRole.Pickup, null, proc.Log, d =>
+        {
+            d.MaxDistance = 150f; d.MinScale = 1.2f; d.MaxScale = 2.0f; d.Item = "Tømmer"; d.Sink = 0.1f;
+        });
+
         // ---------- Tre-ressurser (alltid kodegenerert, med barktekstur)
         Def(PropKind.Branch, "Grein", PropRole.Pickup, null, proc.Branch, d =>
         {
@@ -155,9 +182,63 @@ public static class PropLibrary
         });
         Def(PropKind.Log, "Tømmerstokk", PropRole.Pickup, null, proc.Log, d => { d.Item = "Tømmer"; });
 
+        // ---------- Snødekte varianter (Ultimate Nature Pack, lavpoly) for kalde soner
+        AddCold(PropKind.Spruce, ModelLibrary.Series(LowPoly + "PineTree_Snow_{0}.glb", 1, 5, 2.6f));
+        AddCold(PropKind.Pine, ModelLibrary.Series(LowPoly + "PineTree_Snow_{0}.glb", 2, 4, 3.0f));
+        AddCold(PropKind.Birch, ModelLibrary.Series(LowPoly + "BirchTree_Snow_{0}.glb", 1, 5, 2.0f));
+        AddCold(PropKind.DeadTree, ModelLibrary.Series(LowPoly + "BirchTree_Dead_{0}.glb", 1, 5, 1.5f));
+        AddCold(PropKind.Bush, ModelLibrary.Series(LowPoly + "Bush_Snow_{0}.glb", 1, 2, 1.0f));
+        AddCold(PropKind.Boulder, ModelLibrary.Series(LowPoly + "Rock_Snow_{0}.glb", 1, 7, 2.6f));
+        StumpMesh = ModelLibrary.LoadMesh(LowPoly + "TreeStump.glb");
+        StumpSnowMesh = BrightenSnow(ModelLibrary.LoadMesh(LowPoly + "TreeStump_Snow.glb")) ?? StumpMesh;
+
+        // ---------- Vind (og årstidsfarger) på alt som gror
+        //                                  bend  flutter  løvtre
+        ApplyWind(PropKind.Spruce,          0.55f, 0.35f, false);
+        ApplyWind(PropKind.Pine,            0.65f, 0.45f, false);
+        ApplyWind(PropKind.Birch,           1.35f, 1.4f,  true);
+        ApplyWind(PropKind.Oak,             0.8f,  1.0f,  true);
+        ApplyWind(PropKind.DeadTree,        0.35f, 0.15f, false);
+        ApplyWind(PropKind.Bush,            22f,   1.2f,  true);
+        ApplyWind(PropKind.Fern,            45f,   1.6f,  true);
+        ApplyWind(PropKind.Flower,          60f,   1.8f,  false);
+
         MaxVariants = 1;
         foreach (var d in Defs) MaxVariants = Math.Max(MaxVariants, d.Variants.Length);
         GrassMesh = Procedural.BuildGrassMesh();
+    }
+
+    /// <summary>Legger til snø/kulde-varianter bak de vanlige.</summary>
+    private static void AddCold(PropKind kind, List<ModelVariant> cold)
+    {
+        var d = Defs[(int)kind];
+        if (cold == null || cold.Count == 0 || d == null) return;
+        foreach (var v in cold) v.Mesh = BrightenSnow(v.Mesh);
+        var all = new List<ModelVariant>(d.Variants);
+        d.ColdStart = all.Count;
+        all.AddRange(cold);
+        d.Variants = all.ToArray();
+    }
+
+    private static readonly Dictionary<Mesh, Mesh> SnowFixed = new();
+
+    /// <summary>Lysner materialet "Snow" i lavpoly-modellene (er mørkt lilla-grått i originalen).</summary>
+    public static Mesh BrightenSnow(Mesh mesh)
+    {
+        if (mesh == null) return null;
+        if (SnowFixed.TryGetValue(mesh, out var done)) return done;
+        Mesh result = mesh;
+        for (int s = 0; s < mesh.GetSurfaceCount(); s++)
+        {
+            if (mesh.SurfaceGetMaterial(s) is not BaseMaterial3D m || !m.ResourceName.Contains("Snow")) continue;
+            var snow = (BaseMaterial3D)m.Duplicate();
+            snow.AlbedoColor = new Color(0.84f, 0.87f, 0.93f);
+            snow.Roughness = 0.75f;
+            if (result == mesh) result = (Mesh)mesh.Duplicate();
+            ((ArrayMesh)result).SurfaceSetMaterial(s, snow);
+        }
+        SnowFixed[mesh] = result;
+        return result;
     }
 
     private static void Def(PropKind kind, string name, PropRole role, List<ModelVariant> models, Func<Mesh> fallback, Action<PropDef> setup)
@@ -170,6 +251,74 @@ public static class PropLibrary
         setup(d);
         Defs[(int)kind] = d;
     }
+
+    private static readonly Dictionary<(Material, PropKind), Material> WindMats = new();
+
+    /// <summary>
+    /// Bytter materialene på alle varianter av en plante til vindshaderen (foliage.gdshader).
+    /// Alle overflater på samme modell får samme bend/flutter, så løv og stamme henger sammen.
+    /// </summary>
+    private static void ApplyWind(PropKind kind, float bend, float flutter, bool deciduous)
+    {
+        var d = Defs[(int)kind];
+        if (d == null) return;
+        foreach (var v in d.Variants)
+        {
+            if (v.Mesh is not ArrayMesh) continue;
+            var copy = (ArrayMesh)v.Mesh.Duplicate();
+            for (int s = 0; s < copy.GetSurfaceCount(); s++)
+            {
+                var src = copy.SurfaceGetMaterial(s);
+                if (src == null) continue;
+                if (!WindMats.TryGetValue((src, kind), out var wm))
+                {
+                    wm = WindMaterial(src, bend, flutter, deciduous);
+                    WindMats[(src, kind)] = wm;
+                }
+                copy.SurfaceSetMaterial(s, wm);
+            }
+            v.Mesh = copy;
+        }
+    }
+
+    private static Material WindMaterial(Material src, float bend, float flutter, bool deciduous)
+    {
+        if (src is ShaderMaterial sm)
+        {
+            // Egne shadere (bjørkebark) har vind innebygd; gi dem riktige parametre
+            var c = (ShaderMaterial)sm.Duplicate();
+            c.SetShaderParameter("bend", bend);
+            c.SetShaderParameter("flutter", flutter);
+            return c;
+        }
+        if (src is not BaseMaterial3D bm) return src;
+        string n = bm.ResourceName ?? "";
+        bool leafy = !(n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk") || n.Contains("Snow"));
+        var m = new ShaderMaterial { Shader = FoliageShader ??= GD.Load<Shader>("res://shaders/foliage.gdshader") };
+        m.SetShaderParameter("albedo_color", bm.AlbedoColor);
+        if (bm.AlbedoTexture != null)
+        {
+            m.SetShaderParameter("albedo_tex", bm.AlbedoTexture);
+            m.SetShaderParameter("use_tex", true);
+        }
+        m.SetShaderParameter("use_vcol", bm.VertexColorUseAsAlbedo);
+        m.SetShaderParameter("vcol_srgb", bm.VertexColorIsSrgb);
+        if (bm.NormalEnabled && bm.NormalTexture != null)
+        {
+            m.SetShaderParameter("normal_tex", bm.NormalTexture);
+            m.SetShaderParameter("use_normal", true);
+        }
+        m.SetShaderParameter("alpha_cut", bm.Transparency == BaseMaterial3D.TransparencyEnum.AlphaScissor ? Math.Max(0.01f, bm.AlphaScissorThreshold) : 0f);
+        m.SetShaderParameter("roughness", bm.Roughness);
+        m.SetShaderParameter("bend", bend);
+        m.SetShaderParameter("flutter", flutter);
+        m.SetShaderParameter("leafy", leafy ? 1f : 0f);
+        m.SetShaderParameter("deciduous", deciduous && leafy ? 1f : 0f);
+        m.ResourceName = n;
+        return m;
+    }
+
+    private static Shader FoliageShader;
 
     private static Material BirchMaterial()
     {

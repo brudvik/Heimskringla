@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using Heimskringla.Vegetation;
 
@@ -21,4 +22,11 @@ public abstract partial class PlayerVisual : Node3D
     public virtual void PlayPickup() { }
 
     public virtual string DebugState => "";
+
+    /// <summary>Fotsteg: side (0=v,1=h), posisjon på bakken, retning (yaw).</summary>
+    public event Action<int, Vector3, float> Footstep;
+    protected void RaiseFootstep(int side, Vector3 pos, float yaw) => Footstep?.Invoke(side, pos, yaw);
+
+    /// <summary>Spillerens kropp, så fotstråler ikke treffer den.</summary>
+    public Rid OwnerRid;
 }

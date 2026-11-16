@@ -45,13 +45,25 @@ public static class TerrainMeshBuilder
             // Normal for fargeformål beregnes fra 1 m-skala nært, ellers fra mesh-oppløsningen
             Color c = Biomes.GroundColor(hc, w.GetTemp(x, z), w.GetMoist(x, z), nrm.Y);
             float cn = 1f + w.ColorNoise(x, z) * 0.07f;
+            if (step <= 2f)
+            {
+                float trail = w.TrailMask(x, z, hc, nrm.Y);
+                if (trail > 0f) c = c.Lerp(Biomes.Trail, trail * 0.85f);
+            }
             int v = j * n + i;
             verts[v] = new Vector3(i * step, hc, j * step);
             normals[v] = nrm;
-            colors[v] = new Color(c.R * cn, c.G * cn, c.B * cn);
+
+            // Okklusjon/krumning: søkk blir mørkere, rygger lysere (lagres i alfa, 0..1 => 0..1.25)
+            float lap = (hl + hr + hd + hu) * 0.25f - hc;               // lokal krumning
+            float r = Mathf.Max(14f, step * 3f);
+            float ring = (w.GetHeight(x - r, z) + w.GetHeight(x + r, z) + w.GetHeight(x, z - r) + w.GetHeight(x, z + r)) * 0.25f - hc;
+            float occl = lap / Mathf.Sqrt(step) * 0.9f + ring / r * 1.6f;
+            float ao = Mathf.Clamp(1f - occl, 0.45f, 1.2f);
+            colors[v] = new Color(c.R * cn, c.G * cn, c.B * cn, ao / 1.25f);
         }
 
-        var idx = new List<int>(Quads * Quads * 6 + skirtCount * 6);
+        var idx = new List<int>(Quads * Quads * 6 + skirtCount * 12);
         for (int j = 0; j < Quads; j++)
         for (int i = 0; i < Quads; i++)
         {
@@ -88,6 +100,9 @@ public static class TerrainMeshBuilder
                 int e0 = edge[k], e1 = edge[k + 1], s0 = start + k, s1 = start + k + 1;
                 idx.Add(e0); idx.Add(e1); idx.Add(s0);
                 idx.Add(e1); idx.Add(s1); idx.Add(s0);
+                // Samme flate med motsatt vinding, så skjørtet synes fra begge sider
+                idx.Add(e0); idx.Add(s0); idx.Add(e1);
+                idx.Add(e1); idx.Add(s0); idx.Add(s1);
             }
         }
 

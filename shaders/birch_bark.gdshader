@@ -2,6 +2,10 @@ shader_type spatial;
 
 // Bjørkebark: hvit med mørke, horisontale streker. Brukes på CommonTree-modellene for å lage bjørk.
 
+#include "res://shaders/wind.gdshaderinc"
+
+uniform float bend = 1.0;
+uniform float flutter = 1.0;
 uniform sampler2D bark_tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D bark_normal : hint_normal, filter_linear_mipmap, repeat_enable;
 
@@ -22,6 +26,7 @@ float vnoise(vec2 p) {
 
 void vertex() {
 	obj_pos = VERTEX;
+	VERTEX += wind_displace(VERTEX, MODEL_MATRIX, TIME, bend, flutter);
 }
 
 void fragment() {

@@ -81,7 +81,8 @@ public partial class GrassManager : Node3D
             float ny = 0.7f / MathF.Sqrt(hx * hx + hz * hz + 0.49f);
             float temp = w.GetTemp(x, z), moist = w.GetMoist(x, z);
             var biome = Biomes.Classify(h, temp, moist, ny);
-            float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.78f, 0.9f, ny);
+            float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.78f, 0.9f, ny)
+                            * (1f - w.TrailMask(x, z, h, ny));
             if (roll >= density) continue;
             var col = Biomes.GroundColor(h, temp, moist, ny);
             float s = 0.7f + sc * 0.7f;

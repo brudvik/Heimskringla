@@ -30,6 +30,7 @@ public static class Biomes
     public static readonly Color Heath = new(0.52f, 0.49f, 0.33f);
     public static readonly Color Rock = new(0.45f, 0.43f, 0.40f);
     public static readonly Color Snow = new(0.93f, 0.95f, 0.98f);
+    public static readonly Color Trail = new(0.42f, 0.36f, 0.26f);
 
     public static string Name(Biome b) => b switch
     {
@@ -55,7 +56,7 @@ public static class Biomes
     public static Biome Classify(float h, float temp, float moist, float ny)
     {
         if (h < 0.2f) return Biome.Ocean;
-        if (h < 2.2f) return Biome.Beach;
+        if (h < 3.0f && ny > 0.8f) return Biome.Beach;
         if (temp < 0.12f || h > 240f) return Biome.Snow;
         if (h > 125f || ny < 0.72f) return Biome.Mountain;
         if (temp < 0.30f) return Biome.Tundra;
@@ -76,7 +77,7 @@ public static class Biomes
         c = c.Lerp(SwampMud, SmoothStep(0.62f, 0.72f, moist) * SmoothStep(32f, 18f, h));
         c = c.Lerp(Heath, SmoothStep(0.34f, 0.26f, temp));
         c = c.Lerp(Rock, SmoothStep(105f, 150f, h) * 0.85f);
-        c = c.Lerp(Sand, SmoothStep(3.0f, 1.2f, h));
+        c = c.Lerp(Sand, SmoothStep(3.6f, 1.6f, h) * SmoothStep(0.62f, 0.8f, ny));   // sand bare der det er slakt
         c = c.Lerp(Rock, SmoothStep(0.80f, 0.62f, ny));
         float snow = Mathf.Max(SmoothStep(0.16f, 0.09f, temp), SmoothStep(225f, 260f, h));
         c = c.Lerp(Snow, snow * SmoothStep(0.50f, 0.72f, ny));

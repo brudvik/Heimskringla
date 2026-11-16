@@ -55,6 +55,15 @@ public static class ModelLibrary
         return list;
     }
 
+    /// <summary>Kopi av meshen med samme materiale på alle overflater.</summary>
+    public static Mesh WithMaterialAll(Mesh mesh, Material mat)
+    {
+        var copy = (Mesh)mesh.Duplicate();
+        if (copy is ArrayMesh am)
+            for (int s = 0; s < am.GetSurfaceCount(); s++) am.SurfaceSetMaterial(s, mat);
+        return copy;
+    }
+
     /// <summary>Kopi av meshen med nytt materiale på en gitt overflate.</summary>
     public static Mesh WithMaterial(Mesh mesh, int surface, Material mat)
     {

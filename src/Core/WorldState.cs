@@ -10,6 +10,7 @@ public static class Inventory
 {
     public static readonly Dictionary<string, int> Items = new();
     public static event Action Changed;
+    public static event Action<string, int> ItemAdded;
 
     public static void Add(string item, int count = 1)
     {
@@ -17,6 +18,7 @@ public static class Inventory
         Items.TryGetValue(item, out int cur);
         Items[item] = cur + count;
         Changed?.Invoke();
+        if (count > 0) ItemAdded?.Invoke(item, count);
     }
 
     public static int Count(string item) => Items.TryGetValue(item, out int c) ? c : 0;
@@ -35,6 +37,8 @@ public static class Inventory
 public static class WorldState
 {
     public static readonly HashSet<long> Removed = new();
+    /// <summary>Bål: x, y, z, ved igjen (s). Fylles ved lasting, leses ved lagring.</summary>
+    public static readonly List<float[]> Fires = new();
 
     private sealed class SaveData
     {
@@ -43,6 +47,7 @@ public static class WorldState
         public float TimeOfDay { get; set; }
         public long[] Removed { get; set; }
         public Dictionary<string, int> Inventory { get; set; }
+        public float[][] Fires { get; set; }
     }
 
     private static string PathFor(int seed) => ProjectSettings.GlobalizePath($"user://saves/world_{seed}.json");
@@ -56,6 +61,7 @@ public static class WorldState
             TimeOfDay = timeOfDay,
             Removed = new List<long>(Removed).ToArray(),
             Inventory = new Dictionary<string, int>(Inventory.Items),
+            Fires = Fires.ToArray(),
         };
         var path = PathFor(seed);
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
@@ -76,6 +82,8 @@ public static class WorldState
         if (data.Inventory != null)
             foreach (var kv in data.Inventory) Inventory.Items[kv.Key] = kv.Value;
         Inventory.Add("", 0);
+        Fires.Clear();
+        if (data.Fires != null) Fires.AddRange(data.Fires);
         return (new Vector3(data.Player[0], data.Player[1], data.Player[2]), data.TimeOfDay);
     }
 
@@ -83,5 +91,6 @@ public static class WorldState
     {
         Removed.Clear();
         Inventory.Items.Clear();
+        Fires.Clear();
     }
 }
