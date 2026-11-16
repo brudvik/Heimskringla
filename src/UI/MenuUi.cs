@@ -38,9 +38,10 @@ public static class MenuUi
     }
 
     /// <summary>Menyknapp: ren tekst som lyser opp i gull med en tynn linje under når musa er over.</summary>
-    public static Button Button(string text, int size, Action onPress)
+    public static Button Button(string text, int size, Action onPress, bool left = false)
     {
         var b = new Button { Text = text, Flat = true, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(360, size + 22) };
+        if (left) b.Alignment = HorizontalAlignment.Left;
         b.AddThemeFontOverride("font", Body);
         b.AddThemeFontSizeOverride("font_size", size);
         b.AddThemeColorOverride("font_color", TextDim);
@@ -49,8 +50,14 @@ public static class MenuUi
         b.AddThemeColorOverride("font_pressed_color", Gold);
         b.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.7f));
         b.AddThemeConstantOverride("outline_size", 4);
-        var empty = new StyleBoxEmpty();
-        var hover = new StyleBoxLine { Color = new Color(Gold, 0.7f), Thickness = 1, GrowBegin = -110, GrowEnd = -110, Vertical = false };
+        StyleBox empty = new StyleBoxEmpty();
+        StyleBox hover = new StyleBoxLine { Color = new Color(Gold, 0.7f), Thickness = 1, GrowBegin = -110, GrowEnd = -110, Vertical = false };
+        if (left)
+        {
+            // Venstrestilt meny: gyllen strek til venstre og et svakt skjær bak teksten
+            empty = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0), ContentMarginLeft = 22, BorderWidthLeft = 3, BorderColor = new Color(Gold, 0f) };
+            hover = new StyleBoxFlat { BgColor = new Color(Gold, 0.09f), ContentMarginLeft = 22, BorderWidthLeft = 3, BorderColor = new Color(Gold, 0.9f) };
+        }
         b.AddThemeStyleboxOverride("normal", empty);
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("focus", hover);

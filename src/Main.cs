@@ -25,9 +25,15 @@ public partial class Main : Node3D
     private static bool _introPlayed;
     private static bool _seedFromArgs;
 
-    private enum State { Menu, Generating, Streaming, Playing }
+    private enum State { Menu, Generating, MenuFly, Streaming, Playing }
     private State _state = State.Menu;
     private PauseMenu _pause;
+    // Hovedmenyen: verdenen genereres bak menyen, og et filmkamera flyr over den
+    private MainMenu _menu;
+    private bool _menuFly;
+    private Camera3D _cineCam;
+    private float _cineT, _cineH;
+    private Vector3 _cineCenter;
     private Task<WorldGenerator> _genTask;
     private volatile string _progress = "Starter...";
 
@@ -78,20 +84,96 @@ public partial class Main : Node3D
             BeginGeneration();
             return;
         }
-        // Hovedmeny (med intro første gang)
+        // Hovedmeny (med intro første gang). Verdenen for valgt seed genereres med en gang, så
+        // menyen kan vise den levende verdenen, og "Nytt spill"/"Fortsett" starter uten ny generering.
         if (!_seedFromArgs) Seed = Settings.LastSeed;
         _hud.Visible = false;
-        var menu = new MainMenu { SkipIntro = _introPlayed };
+        _menu = new MainMenu { SkipIntro = _introPlayed, OnStart = OnMenuStart };
         _introPlayed = true;
-        menu.OnStart = (seed, load) =>
+        AddChild(_menu);
+        _menuFly = true;
+        BeginGeneration();
+    }
+
+    private void OnMenuStart(int seed, bool load)
+    {
+        _menuDone = true;
+        _menu = null;
+        if (seed != Seed || (_genTask != null && _genTask.IsFaulted))
         {
+            // Annen verden enn den som er generert bak menyen: last inn på nytt med den
             Seed = seed;
             _loadOnStart = load;
-            _menuDone = true;
-            _hud.Visible = true;
-            BeginGeneration();
-        };
-        AddChild(menu);
+            GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+            return;
+        }
+        _hud.Visible = true;
+        _menuFly = false;
+        _loadOnStart = load;
+        if (_state == State.Generating) return;   // Setup tar vanlig vei når genereringen er ferdig
+        StartFromMenu(load);
+    }
+
+    /// <summary>Verdenen er allerede generert og vist bak menyen: plasser spilleren og start.</summary>
+    private void StartFromMenu(bool load)
+    {
+        _loadOnStart = false;
+        _spawn = Game.World.FindSpawn();
+        _dayNight.Day = 4;
+        _dayNight.TimeOfDay = 0.32f;
+        if (load)
+        {
+            var loaded = WorldState.Load(Seed);
+            if (loaded.HasValue)
+            {
+                _spawn = loaded.Value.pos;
+                _loadedTime = loaded.Value.time;
+                _dayNight.Day = Mathf.FloorToInt(loaded.Value.time);
+                _dayNight.TimeOfDay = loaded.Value.time - _dayNight.Day;
+                _vegetation.Rebuild();   // felte trær osv. fra lagringen
+            }
+        }
+        _weather.Locked = false;
+        _weather.Set(WeatherKind.Cloudy, true);
+        Game.Focus = _spawn;
+        _cineCam?.QueueFree();
+        _cineCam = null;
+        _loadingCamera = new Camera3D { Far = 12000f, Current = true };
+        AddChild(_loadingCamera);
+        _loadingCamera.LookAtFromPosition(_spawn + new Vector3(0, 120, 220), _spawn, Vector3.Up);
+        _streamTime = 0f;
+        _state = State.Streaming;
+    }
+
+    /// <summary>
+    /// Filmkamera over verdenen bak menyen: langsom flytur mot kveldssola, høyt over terrenget, med
+    /// horisonten i bildet og en svak sving fram og tilbake.
+    /// </summary>
+    private void UpdateCineCamera(float dt)
+    {
+        var w = Game.World;
+        _cineT += dt;
+        var toSun = _dayNight.SunDirection(_weather?.YearT ?? 0.15f, _dayNight.TimeOfDay);
+        var fwd0 = new Vector3(toSun.X, 0, toSun.Z);
+        fwd0 = fwd0.LengthSquared() > 1e-4f ? fwd0.Normalized() : Vector3.Forward;
+        // Litt til siden for sola (ikke rett inn i den), og en langsom sving
+        var fwd = fwd0.Rotated(Vector3.Up, 1.2f + Mathf.Sin(_cineT * 0.035f) * 0.2f);
+        var side = fwd.Cross(Vector3.Up);
+        var pos = _cineCenter - fwd0 * 160f + fwd0 * (_cineT * 5.5f) + side * Mathf.Sin(_cineT * 0.02f) * 60f;
+        float ground = 0f;
+        for (int i = -1; i <= 6; i++)
+        {
+            var q = pos + fwd * (i * 40f);
+            ground = Mathf.Max(ground, w.GetHeight(q.X, q.Z));
+        }
+        float target = Mathf.Max(ground, 0f) + 42f;
+        _cineH = _cineH <= 0f ? target : Mathf.Lerp(_cineH, target, 1f - Mathf.Exp(-dt / 3f));
+        pos.Y = _cineH;
+        var look = pos + fwd * 400f;
+        look.Y = pos.Y - 55f;
+        var xf = Transform3D.Identity.Translated(pos).LookingAt(look, Vector3.Up);
+        _cineCam.GlobalTransform = _cineT < 0.1f ? xf : new Transform3D(_cineCam.GlobalBasis.Slerp(xf.Basis, 1f - Mathf.Exp(-dt / 1.2f)).Orthonormalized(), pos);
+        Game.Focus = new Vector3(pos.X, 0, pos.Z) + fwd * 60f;
     }
 
     private void BeginGeneration()
@@ -128,8 +210,15 @@ public partial class Main : Node3D
         {
             case State.Menu:
                 return;
+            case State.MenuFly:
+                UpdateCineCamera((float)delta);
+                Game.Jobs.ProcessCompleted(8.0);
+                if (_menu != null && IsInstanceValid(_menu) && !_menu.WorldReady && _cineT > 1.5f
+                    && _terrain.IsAreaReady(Game.Focus, 260f))
+                    _menu.WorldReady = true;
+                break;
             case State.Generating:
-                _hud.SetLoading($"Genererer verden (seed {Seed})\n{_progress}");
+                if (!_menuFly) _hud.SetLoading($"Genererer verden (seed {Seed})\n{_progress}");
                 if (_genTask.IsFaulted)
                 {
                     _hud.SetLoading("Feil under generering:\n" + _genTask.Exception?.InnerException?.Message);
@@ -222,15 +311,29 @@ public partial class Main : Node3D
         AddChild(new Ocean(oceanMat));
         AddChild(new Waterfalls { Name = "Waterfalls" });
 
-        // Midlertidig kamera mens terrenget lastes
-        _loadingCamera = new Camera3D { Far = 12000f, Current = true };
-        AddChild(_loadingCamera);
-        _loadingCamera.LookAtFromPosition(_spawn + new Vector3(0, 120, 220), _spawn, Vector3.Up);
-
         var img = Image.CreateFromData(world.MapSize, world.MapSize, false, Image.Format.Rgb8, world.MapPixels);
         _hud.Map.Texture = ImageTexture.CreateFromImage(img);
         _hud.Map.Seed = Seed;
 
+        if (_menuFly)
+        {
+            // Bak menyen: gylden kveldssol, lette skyer, filmkamera over startområdet
+            _weather.Locked = true;
+            _weather.Set(WeatherKind.Cloudy, true);
+            _dayNight.TimeOfDay = 0.725f;
+            _cineCenter = _spawn;
+            _cineCam = new Camera3D { Far = 12000f, Current = true, Fov = 62f };
+            AddChild(_cineCam);
+            _cineT = 0f;
+            UpdateCineCamera(0f);
+            _state = State.MenuFly;
+            return;
+        }
+
+        // Midlertidig kamera mens terrenget lastes
+        _loadingCamera = new Camera3D { Far = 12000f, Current = true };
+        AddChild(_loadingCamera);
+        _loadingCamera.LookAtFromPosition(_spawn + new Vector3(0, 120, 220), _spawn, Vector3.Up);
         _state = State.Streaming;
     }
 

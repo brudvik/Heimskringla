@@ -59,6 +59,12 @@ public partial class VegetationManager : Node3D
         }
         return best;
     }
+    /// <summary>Fjerner alle celler, så de bygges på nytt (etter at en lagring er lastet: felte trær).</summary>
+    public void Rebuild()
+    {
+        foreach (var cell in new List<VegCell>(_cells.Values)) RemoveCell(cell);
+    }
+
     public int PromotedCount => _promoted.Count;
     public int InstanceCount { get; private set; }
 
