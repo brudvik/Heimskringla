@@ -1,4 +1,5 @@
 shader_type spatial;
+#include "res://shaders/cloudshadow.gdshaderinc"
 
 // Bjørkebark (brukes på CommonTree-modellene for å lage bjørk):
 //  - hvit, papiraktig bark med mørke, vannrette porestreker (lenticeller) og avflassede, rosa-brune flekker
@@ -104,6 +105,6 @@ void fragment() {
 	// Snø på oversiden av greinene om vinteren
 	col = mix(col, vec3(0.84, 0.87, 0.92), v_snow * smoothstep(0.2, 0.6, wn.y));
 
-	ALBEDO = col;
+	ALBEDO = col * cloud_shade(VERTEX, INV_VIEW_MATRIX);
 	ROUGHNESS = mix(0.7, 0.92, base);
 }

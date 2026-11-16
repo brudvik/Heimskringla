@@ -59,8 +59,10 @@ vec3 aurora_light(vec3 d, float t) {
 		float along = p.x + sin(p.y * 1.3) * 0.4;
 		float rays = vnoise(vec2(along * 3.1 + t * 0.12, t * 0.04)) * 0.65 + vnoise(vec2(along * 9.0 - t * 0.3, 7.0 + t * 0.02)) * 0.35;
 		rays = 0.25 + pow(rays, 1.8) * 1.8;
-		// Grønt nederst, mot fiolett/rødt øverst; nederkanten er skarpest
-		vec3 c = mix(vec3(0.15, 1.0, 0.45), vec3(0.55, 0.25, 0.85), smoothstep(0.35, 1.0, f));
+		// Grønt i hoveddelen, rødlig øverst (oksygen høyt oppe), og en rosa-fiolett nederkant
+		// (nitrogen) som bare synes når nordlyset er sterkt
+		vec3 c = mix(vec3(0.15, 1.0, 0.45), vec3(0.7, 0.16, 0.32), smoothstep(0.45, 1.0, f));
+		c = mix(c, vec3(0.8, 0.22, 0.75), (1.0 - smoothstep(0.0, 0.07, f)) * 0.75 * smoothstep(0.5, 1.0, aurora));
 		float fade = (1.0 - f) * (1.0 - f) * smoothstep(0.0, 0.08, f + 0.02);
 		acc += c * curtain * rays * fade;
 	}

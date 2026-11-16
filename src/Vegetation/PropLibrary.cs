@@ -62,7 +62,9 @@ public static class PropLibrary
         var proc = new Procedural(Game.PropMaterial, BarkMaterial());
 
         // ---------- Trær
-        var spruce = ModelLibrary.Series(Nature + "Pine_{0}.gltf", 1, 3);
+        // Gran: egen kodegenerert norsk gran med barnålkort (SpruceBuilder); lavpoly-granene fra
+        // naturpakka hadde flate, kantete greinplater som så ut som papp på nært hold.
+        var spruce = OS.GetEnvironment("HK_OLDSPRUCE") == "1" ? ModelLibrary.Series(Nature + "Pine_{0}.gltf", 1, 3) : SpruceBuilder.Variants();
         Def(PropKind.Spruce, "Gran", PropRole.Tree, spruce, proc.Spruce, d =>
         {
             d.MinScale = 0.9f; d.MaxScale = 1.45f; d.Sink = 0.15f; d.TrunkRadius = 0.3f;

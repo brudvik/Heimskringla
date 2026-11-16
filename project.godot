@@ -68,6 +68,10 @@ wetness={
 "type": "float",
 "value": 0.0
 }
+player_head={
+"type": "vec3",
+"value": Vector3(0, -10000, 0)
+}
 season_leaf_drop={
 "type": "float",
 "value": 0.0
@@ -99,6 +103,10 @@ cloud_params={
 cloud_offset={
 "type": "vec2",
 "value": Vector2(0, 0)
+}
+sun_direction={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
 }
 rock_albedo_arr={
 "type": "sampler2DArray",

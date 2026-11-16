@@ -337,6 +337,8 @@ public partial class Player : CharacterBody3D
         _camPivot.GlobalPosition = p;
         _camPivot.Rotation = new Vector3(_pitch, _yaw, 0);
         _arm.SpringLength = Mathf.Lerp(_arm.SpringLength, _armTarget, 1f - Mathf.Exp(-10f * dt));
+        // Løv mellom kameraet og figuren tones bort i foliage-shaderen (trekroner har ingen kollisjon)
+        RenderingServer.GlobalShaderParameterSet("player_head", GlobalPosition + new Vector3(0, 1.3f, 0));
 
         // FOV øker litt ved sprint
         bool sprint = Input.IsPhysicalKeyPressed(Key.Shift) && !Exhausted && Velocity.Length() > JogSpeed + 0.5f;

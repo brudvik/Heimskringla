@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled;
+#include "res://shaders/cloudshadow.gdshaderinc"
 
 // Erstatter de importerte StandardMaterial3D-ene på trær og busker, med vind og årstidsfarger.
 // Parametrene kopieres fra originalmaterialet i PropLibrary.WindMaterial().
@@ -32,6 +33,30 @@ global uniform float snow_line;           // temperatur snøen går ned til (se 
 global uniform float wetness;
 global uniform sampler2D world_map : filter_linear;   // r = temperatur, g = høyde/100 (se WorldTexture)
 global uniform vec4 world_rect;                      // xz-min og 1/størrelse
+global uniform vec3 player_head;                     // figurens bryst/hode (Player.cs)
+
+// 4x4 Bayer-terskel for dithret uttoning (ingen gjennomsiktighet/sortering nødvendig)
+float bayer4(vec2 fc) {
+	ivec2 p = ivec2(fc) & ivec2(3);
+	int i = p.x + p.y * 4;
+	int m[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
+	return (float(m[i]) + 0.5) / 16.0;
+}
+
+// Hvor mye av løvet som skal bort: helt inntil kameraet, og i en "tunnel" fra kameraet til figuren
+// (så man aldri står og ser på en grønn vegg når kameraet havner inne i en trekrone)
+float view_fade(vec3 world, vec3 cam) {
+	float near = 1.0 - smoothstep(1.2, 3.0, distance(world, cam));
+	vec3 seg = player_head - cam;
+	float len = length(seg);
+	if (len < 0.01) return near;
+	float t = clamp(dot(world - cam, seg) / (len * len), 0.0, 1.0);
+	float d = distance(world, cam + seg * t);
+	// Bare foran figuren (t < 1), og tunnelen smalner mot kameraet
+	float tunnel = (1.0 - smoothstep(0.9, 1.0, t)) * (1.0 - smoothstep(0.7 + t * 0.9, 1.2 + t * 1.4, d));
+	return max(near, tunnel);
+}
+varying vec3 v_world;
 
 varying float v_hash;
 varying vec3 obj_pos;
@@ -61,6 +86,7 @@ void vertex() {
 		NORMAL = normalize(mix(NORMAL, dome, 0.7));
 	}
 	VERTEX += wind_displace(VERTEX, MODEL_MATRIX, TIME, bend, flutter);
+	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 r = MODEL_MATRIX[3].xyz;
 	v_hash = fract(sin(dot(r.xz, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -70,6 +96,10 @@ void fragment() {
 	if (use_tex) c *= texture(albedo_tex, UV);
 	if (use_vcol) c.rgb *= vcol_srgb ? pow(COLOR.rgb, vec3(2.2)) : COLOR.rgb;
 	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	if (leafy > 0.5 && !IN_SHADOW_PASS) {
+		float f = view_fade(v_world, INV_VIEW_MATRIX[3].xyz);
+		if (f > 0.001 && f * 1.02 > bayer4(FRAGCOORD.xy)) discard;
+	}
 	if (leafy > 0.5 && deciduous > 0.5 && season_leaf_drop > 0.001) {
 		// Løvfall: klumper av blader forsvinner tilfeldig
 		if (ihash(obj_pos * 2.5 + v_hash * 17.0) < season_leaf_drop * 1.02) discard;
@@ -136,7 +166,7 @@ void fragment() {
 	float snow = v_snow * smoothstep(0.05, 0.5, wn.y + (clump - 0.5) * 0.5) * (leafy > 0.5 ? 0.85 : 1.0);
 	c.rgb = mix(c.rgb, vec3(0.82, 0.85, 0.9), snow);
 	c.rgb *= 1.0 - wetness * 0.25 * (1.0 - snow);
-	ALBEDO = c.rgb;
+	ALBEDO = c.rgb * cloud_shade(VERTEX, INV_VIEW_MATRIX);
 	if (alpha_cut > 0.0) {
 		ALPHA = c.a;
 		ALPHA_SCISSOR_THRESHOLD = alpha_cut;

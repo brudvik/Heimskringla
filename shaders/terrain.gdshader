@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_back;   // dobbeltsidig gir skyggeakne; skjørtene har trekanter begge veier
+#include "res://shaders/cloudshadow.gdshaderinc"
 
 // Terreng: bakkefarge fra vertex color (klimasone/helning, beregnet på CPU),
 // COLOR.a = okklusjon/krumning (0..1 => 0..1.25).
@@ -346,7 +347,7 @@ void fragment() {
 	bn = normalize(bn + tex_off * 0.9);
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
 
-	ALBEDO = col;
+	ALBEDO = col * cloud_shade(VERTEX, INV_VIEW_MATRIX);
 	AO = clamp(ao, 0.0, 1.0) * tex_ao;
 	AO_LIGHT_AFFECT = 0.25;
 	ROUGHNESS = mix(mix(mix(0.95, 0.8, steep), tex_rough, tf), 0.3, wet * 0.85);

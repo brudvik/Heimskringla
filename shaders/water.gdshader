@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled, depth_draw_always, specular_schlick_ggx, ambient_light_disabled;
+#include "res://shaders/cloudshadow.gdshaderinc"
 
 // Vann for hav, innsjøer og elver.
 //  - Havet (is_ocean): Gerstner-bølger i vertex-shaderen, styrt av vinden, dempet på grunt vann
@@ -21,8 +22,6 @@ global uniform vec3 sky_horizon;
 global uniform vec3 sky_zenith;
 global uniform vec3 cloud_light;
 global uniform vec3 cloud_shadow;
-global uniform vec4 cloud_params;    // dekke, mørke, natt
-global uniform vec2 cloud_offset;
 global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
 global uniform float wetness;
@@ -262,7 +261,7 @@ void fragment() {
 	// Sluttfarge: bunnen (gjennom vannet) + spredt lys i vannet + speiling
 	float scatter = 1.0 - (trans.r + trans.g + trans.b) / 3.0;
 	vec3 lit_body = body * scatter;                     // belyses av sol/himmel (ALBEDO)
-	ALBEDO = mix(lit_body * (1.0 - fres), vec3(0.9, 0.95, 1.0), foam * 0.85);
+	ALBEDO = mix(lit_body * (1.0 - fres) * cloud_shade(VERTEX, INV_VIEW_MATRIX), vec3(0.9, 0.95, 1.0), foam * 0.85);
 	// Omgivelseslys (motorens er slått av for vannet, så himmelen ikke speiles to ganger)
 	vec3 amb = pow(mix(sky_horizon, sky_zenith, 0.5), vec3(2.2));
 	EMISSION = under * trans * (1.0 - foam) * (1.0 - fres) + refl * fres * reflect_strength + ALBEDO * amb * 0.6;

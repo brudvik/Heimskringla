@@ -28,6 +28,8 @@ public partial class DayNight : Node3D
     private Godot.Environment _env;
     private ShaderMaterial _sky;
     private CameraAttributesPractical _cam;
+    private FogVolume _mist;
+    private ShaderMaterial _mistMat;
     private readonly GradientTexture1D _grade = new() { Width = 128 };
     private float _gradeTimer;
 
@@ -112,6 +114,10 @@ public partial class DayNight : Node3D
             LightVolumetricFogEnergy = 1.4f,
         };
         AddChild(_sun);
+        // Lav tåke i dalene og over fjorden (følger kameraet, se shaders/mist.gdshader)
+        _mistMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/mist.gdshader") };
+        _mist = new FogVolume { Size = new Vector3(300f, 420f, 300f), Shape = RenderingServer.FogVolumeShape.Box, Material = _mistMat };
+        AddChild(_mist);
         _moon = new DirectionalLight3D { ShadowEnabled = true, LightColor = new Color(0.62f, 0.72f, 1f), DirectionalShadowMaxDistance = 120f };
         AddChild(_moon);
         Apply();
@@ -226,6 +232,19 @@ public partial class DayNight : Node3D
         _env.VolumetricFogDensity = 0.0014f + dawn * 0.0045f + lowSun * 0.0035f + fog * 0.018f + precip * 0.004f + nightAmt * 0.0015f;
         _env.VolumetricFogAlbedo = new Color(0.92f, 0.94f, 0.97f).Lerp(new Color(0.8f, 0.82f, 0.86f), dark);
 
+        // Tåkebankene: tykkest i morgensola og i tåkevær, litt om kvelden og etter regn,
+        // nesten borte midt på en klar dag (sola "brenner bort" disen)
+        float dusk = Biomes.SmoothStep(0.74f, 0.8f, TimeOfDay) * (1f - Biomes.SmoothStep(0.86f, 0.95f, TimeOfDay));
+        float mist = 0.004f + dawn * 0.05f + dusk * 0.02f + fog * 0.06f + precip * 0.02f + nightAmt * 0.012f;
+        _mistMat.SetShaderParameter("amount", mist);
+        _mistMat.SetShaderParameter("thickness", 7f + fog * 14f + dawn * 4f);
+        var cam = GetViewport()?.GetCamera3D();
+        if (cam != null)
+        {
+            var cp = cam.GlobalPosition;
+            _mist.GlobalPosition = new Vector3(Mathf.Round(cp.X / 8f) * 8f, cp.Y - 120f, Mathf.Round(cp.Z / 8f) * 8f);
+        }
+
         // Fargegradering (sjelden; teksturen bygges på nytt)
         _gradeTimer -= (float)GetProcessDeltaTime();
         if (_gradeTimer <= 0f)
@@ -243,6 +262,7 @@ public partial class DayNight : Node3D
         RenderingServer.GlobalShaderParameterSet("cloud_shadow", new Vector3(cs.R, cs.G, cs.B));
         RenderingServer.GlobalShaderParameterSet("cloud_params", new Vector4(clouds, dark, nightAmt, 0f));
         RenderingServer.GlobalShaderParameterSet("cloud_offset", _cloudOffset);
+        RenderingServer.GlobalShaderParameterSet("sun_direction", toSun);
     }
 
     /// <summary>

@@ -129,7 +129,9 @@ public partial class Main : Node3D
         var waterShader = GD.Load<Shader>("res://shaders/water.gdshader");
         Game.WaterMaterial = new ShaderMaterial { Shader = waterShader };
         Game.WaterMaterial.SetShaderParameter("wave_strength", 0.5f);
-        Game.WaterMaterial.SetShaderParameter("shallow_color", new Color(0.22f, 0.45f, 0.42f));
+        Game.WaterMaterial.SetShaderParameter("shallow_color", new Color(0.18f, 0.40f, 0.37f));
+        // Dypt fjordvann: mørkt skifergrønt (norske fjorder), ikke tropisk blått
+        Game.WaterMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.075f, 0.1f));
         Game.PropMaterial = new StandardMaterial3D
         {
             VertexColorUseAsAlbedo = true,

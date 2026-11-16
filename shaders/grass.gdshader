@@ -1,5 +1,6 @@
 shader_type spatial;
 render_mode cull_disabled, specular_schlick_ggx;
+#include "res://shaders/cloudshadow.gdshaderinc"
 
 // Gresstuster i MultiMesh. INSTANCE_CUSTOM.rgb = bakkefargen der tusten står (sRGB), .a = tilfeldig.
 // UV.y = 0 i tuppen, 1 ved roten. COLOR.r = tilfeldig per strå.
@@ -99,7 +100,7 @@ void fragment() {
 	col *= 1.0 + v_gust * wind_strength * 0.25 * tip;
 	// Litt mørkere kanter på strået
 	col *= 1.0 - pow(abs(UV.x - 0.5) * 2.0, 3.0) * 0.15;
-	ALBEDO = col;
+	ALBEDO = col * cloud_shade(VERTEX, INV_VIEW_MATRIX);
 	ROUGHNESS = mix(0.75, 0.45, wetness);
 	SPECULAR = 0.25;
 	BACKLIGHT = col * 0.4;
