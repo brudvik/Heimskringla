@@ -27,3 +27,13 @@ Terrengteksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering p�
 - Bark014 (bark (gran/furu)) - https://ambientcg.com/view?id=Bark014
 - Bark012 (bark (løvtre)) - https://ambientcg.com/view?id=Bark012
 - Moss002 (mose) - https://ambientcg.com/view?id=Moss002
+
+## assets/polyhaven/ - Poly Haven (CC0 1.0)
+
+Modeller fra https://polyhaven.com, lisens CC0 1.0 (ingen kreditering påkrevd):
+- rock_face_01 - https://polyhaven.com/a/rock_face_01
+- rock_face_02 - https://polyhaven.com/a/rock_face_02
+- mountainside - https://polyhaven.com/a/mountainside
+- boulder_01 - https://polyhaven.com/a/boulder_01
+- rock_07 - https://polyhaven.com/a/rock_07
+- rock_09 - https://polyhaven.com/a/rock_09

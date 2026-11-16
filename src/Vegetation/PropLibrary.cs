@@ -166,6 +166,22 @@ public static class PropLibrary
         // oppå fjellet. Bare avrundede steinutspring, godt nedsenket.
         var cliffs = new List<ModelVariant>();
         cliffs.AddRange(ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 3.2f));
+        // Skannede klipper fra Poly Haven (scripts/fetch_polyhaven_models.py): gir ekte bergformer
+        // med kanter og overheng som terrengnettet ikke kan lage. Godot lager LOD-er ved import.
+        const string PH = "res://assets/polyhaven/";
+        if (OS.GetEnvironment("HK_NOSCANS") != "1")   // testbryter
+        foreach (var (id, scale) in new[] { ("rock_face_01", 6f), ("rock_face_02", 9f), ("mountainside", 3f), ("boulder_01", 6f) })
+        {
+            var v = ModelLibrary.Variant(PH + $"{id}/{id}.gltf", scale);
+            if (v == null) continue;
+            var face = ModelVariant.AverageNormal(v.Mesh);
+            bool shell = new Vector2(face.X, face.Z).Length() > 0.4f;   // åpent skall (bare forsiden skannet)
+            v.FaceDir = shell ? new Vector3(face.X, 0, face.Z).Normalized() : null;
+            v.SinkFrac = shell ? 0.25f : 0.35f;
+            GD.Print($"Klippe {id}: forside {face}, skall={shell}");
+            cliffs.Add(v);
+            cliffs.Add(new ModelVariant { Mesh = v.Mesh, BaseScale = scale * 1.4f, FaceDir = v.FaceDir, SinkFrac = v.SinkFrac });
+        }
         cliffs.RemoveAll(v => v == null);
         foreach (var v in cliffs) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         Def(PropKind.Cliff, "Klippe", PropRole.Obstacle, cliffs, proc.Boulder, d =>

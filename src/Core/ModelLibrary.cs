@@ -9,6 +9,23 @@ public sealed class ModelVariant
     public Mesh Mesh;
     public Aabb Aabb;
     public float BaseScale = 1f;
+    /// <summary>Skannede "skall": retningen forsiden vender (objektrom, xz), eller null. Settes ut fra skråningen.</summary>
+    public Vector3? FaceDir;
+    /// <summary>Nedsenking (andel av høyden) som overstyrer PropDef.Sink, eller negativ for standard.</summary>
+    public float SinkFrac = -1f;
+
+    /// <summary>Snittet av alle normalene i meshen (per hjørne): hvor forsiden vender.</summary>
+    public static Vector3 AverageNormal(Mesh mesh)
+    {
+        var sum = Vector3.Zero;
+        for (int s = 0; s < mesh.GetSurfaceCount(); s++)
+        {
+            var arr = mesh.SurfaceGetArrays(s);
+            // Normalene (ikke vindingen, som Godot snur ved import)
+            foreach (var nrm in arr[(int)Mesh.ArrayType.Normal].AsVector3Array()) sum += nrm;
+        }
+        return sum.LengthSquared() > 0f ? sum.Normalized() : Vector3.Back;
+    }
 }
 
 /// <summary>Laster mesher fra importerte glTF/GLB-scener (res://assets/...).</summary>

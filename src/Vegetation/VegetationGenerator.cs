@@ -107,7 +107,7 @@ public static class VegetationGenerator
                 float d = Density[b, k];
                 if (k < TreeKinds) d *= treeMul;
                 if (k == FlowerKind) d *= 1f + 3f * (1f - clump);          // blomstereng i lysningene
-                if (k == CliffKind) d *= 0.25f + 2.5f * Biomes.SmoothStep(0.97f, 0.7f, n.Y);   // helst i skrenter
+                if (k == CliffKind) d *= 0.2f + 4f * Biomes.SmoothStep(0.9f, 0.6f, n.Y);   // helst i skrenter
                 if (trail > 0.3f && k != (int)PropKind.Stone && k != (int)PropKind.Branch) d = 0f;
                 if (n.Y < MinNormalY[k]) d = 0f;
                 dens[k] = d;
@@ -133,14 +133,19 @@ public static class VegetationGenerator
                 else vCount = def.ColdStart;
             }
             int variant = vFrom + Math.Min((int)(vr * vCount), vCount - 1);
-            float scale = Mathf.Lerp(def.MinScale, def.MaxScale, sc) * def.Variants[variant].BaseScale;
+            var mv = def.Variants[variant];
+            float scale = Mathf.Lerp(def.MinScale, def.MaxScale, sc) * mv.BaseScale;
+            // Skannede klippeskall: forsiden ut fra skråningen (baksiden inn i fjellet)
+            if (mv.FaceDir is Vector3 fd && new Vector2(n.X, n.Z).LengthSquared() > 1e-4f)
+                yaw = MathF.Atan2(n.X, n.Z) - MathF.Atan2(fd.X, fd.Z) + (vr - 0.5f) * 0.6f;
+            float sink = mv.SinkFrac >= 0f ? mv.SinkFrac * mv.Aabb.Size.Y : def.Sink;
             if (biome == Biome.Tundra && def.Role == PropRole.Tree && !cold) scale *= 0.7f;
             lists[kind].Add(new PropInstance
             {
                 Kind = (PropKind)kind,
                 Variant = variant,
                 Cold = cold,
-                Pos = new Vector3(x, BaseHeight(w, def, variant, scale, x, z, h) - def.Sink * scale, z),
+                Pos = new Vector3(x, BaseHeight(w, def, variant, scale, x, z, h) - sink * scale, z),
                 Yaw = yaw,
                 Scale = scale,
                 Id = MakeId(cx, cz, myIndex),

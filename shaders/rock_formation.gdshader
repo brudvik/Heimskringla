@@ -40,6 +40,12 @@ float gnoise(vec2 p) {
 	return mix(mix(va, vb, u.x), mix(vc, vd, u.x), u.y);
 }
 
+float vnoise(vec2 p) {
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+
 const mat2 ROT = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 
 float gfbm(vec2 p) {
@@ -73,7 +79,12 @@ void fragment() {
 	float cx = gfbm(world_pos.zy * 0.25), cy = gfbm(world_pos.xz * 0.25), cz = gfbm(world_pos.xy * 0.25);
 	float c = cx * w.x + cy * w.y + cz * w.z;
 	float big = gfbm(world_pos.xz * 0.02 + world_pos.y * 0.01);
-	vec3 rock = vec3(0.30, 0.29, 0.27);
+	// Samme grunnfarge, bergart og høydelag som fjellet i terrengshaderen
+	vec3 rock = vec3(0.2, 0.19, 0.17);
+	float geo1 = vnoise(world_pos.xz * 0.0007 + 3.0), geo2 = vnoise(world_pos.xz * 0.0011 - 11.0);
+	vec3 geo = mix(mix(vec3(1.08, 1.1, 1.12), vec3(1.18, 1.0, 0.9), smoothstep(0.4, 0.7, geo1)), vec3(0.72, 0.74, 0.76), smoothstep(0.55, 0.8, geo2));
+	float layer = vnoise(vec2(world_pos.y * 0.018 + vnoise(world_pos.xz * 0.003) * 3.0, world_pos.x * 0.0013 + world_pos.z * 0.0009));
+	rock *= geo * mix(vec3(0.86, 0.88, 0.9), vec3(1.12, 1.06, 0.96), layer);
 	rock *= mix(vec3(0.92, 0.96, 1.04), vec3(1.08, 1.0, 0.9), big * 0.5 + 0.5);
 	rock *= 0.85 + c * 0.45;
 	// Lagdeling på sidene
