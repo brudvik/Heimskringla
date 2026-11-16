@@ -207,7 +207,7 @@ public partial class Main : Node3D
         }
         if (_autoTestDir != null)
         {
-            _weather.Locked = true; _weather.Set(WeatherKind.Cloudy, true);
+            _weather.Locked = true; _weather.Set(WeatherKind.Broken, true);
             // Ta opp lyden for hvert steg (audio_XX.wav), så lydbildet kan sjekkes/lyttes til
             _rec = new AudioEffectRecord();
             AudioServer.AddBusEffect(0, _rec);
@@ -230,7 +230,7 @@ public partial class Main : Node3D
                 _hud.Toast("Spillet er lagret.");
                 break;
             case Key.F6:
-                _weather.Set((WeatherKind)(((int)_weather.Kind + 1) % 6));
+                _weather.Set((WeatherKind)(((int)_weather.Kind + 1) % 7));
                 _hud.Toast($"Været skifter: {_weather.Description}");
                 break;
             case Key.F7:

@@ -5,7 +5,7 @@ using Heimskringla.World;
 
 namespace Heimskringla.Environment;
 
-public enum WeatherKind { Clear, Cloudy, Overcast, Rain, Storm, Fog }
+public enum WeatherKind { Clear, Cloudy, Overcast, Rain, Storm, Fog, Broken }
 
 /// <summary>
 /// Vær og årstider. Velger nytt vær med jevne mellomrom (påvirket av årstiden), glir mykt mellom
@@ -35,6 +35,7 @@ public partial class Weather : Node3D
     private GpuParticles3D _rain, _snow;
     private GpuParticlesCollisionHeightField3D _collider;
     private DayNight _dn;
+    private float _drift;
 
     private struct Target { public float Clouds, Dark, Wind, Precip, Fog, Lightning; }
 
@@ -46,6 +47,8 @@ public partial class Weather : Node3D
         WeatherKind.Rain => new Target { Clouds = 0.97f, Dark = 0.62f, Wind = 0.55f, Precip = 0.7f, Fog = 0.35f },
         WeatherKind.Storm => new Target { Clouds = 1f, Dark = 0.82f, Wind = 1f, Precip = 1f, Fog = 0.4f, Lightning = 1f },
         WeatherKind.Fog => new Target { Clouds = 0.6f, Dark = 0.3f, Wind = 0.06f, Fog = 1f },
+        // Skiftende: store, drivende skyer med sol imellom (lyset som bryter gjennom og vandrer)
+        WeatherKind.Broken => new Target { Clouds = 0.66f, Dark = 0.14f, Wind = 0.45f, Fog = 0.05f },
         _ => new Target(),
     };
 
@@ -57,6 +60,7 @@ public partial class Weather : Node3D
         WeatherKind.Rain => snow ? "Snøvær" : "Regn",
         WeatherKind.Storm => snow ? "Snøstorm" : "Storm",
         WeatherKind.Fog => "Tåke",
+        WeatherKind.Broken => "Skiftende",
         _ => "",
     };
 
@@ -126,13 +130,14 @@ public partial class Weather : Node3D
     private WeatherKind PickNext()
     {
         int s = Season;
-        // Vekter: klart, lettskyet, overskyet, nedbør, storm, tåke
+        // Vekter: klart, lettskyet, overskyet, nedbør, storm, tåke, skiftende.
+        // Norsk vær: sjelden blå himmel hele dagen, ofte skiftende med lys som bryter gjennom.
         float[] w = s switch
         {
-            0 => new[] { 3f, 4f, 3f, 2.5f, 0.4f, 1.2f },   // vår
-            1 => new[] { 6f, 4f, 2f, 1.5f, 0.6f, 0.5f },   // sommer
-            2 => new[] { 2f, 3f, 4f, 3.5f, 1.2f, 2f },     // høst
-            _ => new[] { 3f, 2f, 4f, 3.5f, 1f, 1f },       // vinter
+            0 => new[] { 2f, 3.5f, 3f, 2.5f, 0.4f, 1.2f, 4f },   // vår
+            1 => new[] { 3.5f, 4f, 2f, 1.8f, 0.6f, 0.7f, 4.5f }, // sommer
+            2 => new[] { 1.2f, 2.5f, 4f, 3.5f, 1.2f, 2f, 3.5f }, // høst
+            _ => new[] { 2.5f, 2f, 4f, 3.5f, 1f, 1f, 2f },       // vinter
         };
         // Litt "hukommelse": samme vær igjen er mindre sannsynlig, nabotilstander mer
         w[(int)Kind] *= 0.4f;
@@ -150,6 +155,13 @@ public partial class Weather : Node3D
     private void Apply(float dt, bool snap)
     {
         var t = For(Kind);
+        // Været lever også innenfor samme type: skydekke og mørke svinger langsomt (skyene
+        // tetner og letter over minutter), mest i de "mellomste" værtypene
+        _drift += dt;
+        float sway = Mathf.Sin(_drift * 0.0061f + 1.3f) * Mathf.Sin(_drift * 0.0023f) + 0.35f * Mathf.Sin(_drift * 0.017f);
+        float room = Kind is WeatherKind.Storm or WeatherKind.Rain ? 0.04f : Kind == WeatherKind.Clear ? 0.1f : 0.16f;
+        t.Clouds = Mathf.Clamp(t.Clouds + sway * room, 0f, 1f);
+        t.Dark = Mathf.Clamp(t.Dark + sway * room * 0.5f, 0f, 1f);
         float k = snap ? 1f : 1f - Mathf.Exp(-dt / 25f);       // ~25 s tidskonstant
         Clouds = Mathf.Lerp(Clouds, t.Clouds, k);
         Dark = Mathf.Lerp(Dark, t.Dark, k);

@@ -76,30 +76,18 @@ public static class PropLibrary
             d.MinScale = 0.85f; d.MaxScale = 1.2f; d.Sink = 0.2f; d.TrunkRadius = 0.3f;
             d.Tool = ToolKind.Axe; d.Hp = 6; d.LogsOnFell = 4; d.BranchesOnFell = 1;
         });
-        var birch = new List<ModelVariant>();
+        // Bjørk og eik: kodegenererte lauvtrær med lauvkort (LeafTreeBuilder); de runde
+        // "ballong"-kronene fra naturpakka brukes bare med HK_OLDTREES=1
+        bool oldTrees = OS.GetEnvironment("HK_OLDTREES") == "1";
         var birchBark = BirchMaterial();
-        foreach (var v in ModelLibrary.Series(Nature + "CommonTree_{0}.gltf", 3, 4))
-        {
-            var m = ModelLibrary.WithMaterial(v.Mesh, 0, birchBark);
-            if (m.GetSurfaceCount() > 1 && m.SurfaceGetMaterial(1) is BaseMaterial3D leaves)
-            {
-                var lm = (BaseMaterial3D)leaves.Duplicate();
-                lm.AlbedoColor = new Color(1.02f, 1.1f, 0.74f);   // lysere, gulere bjørkeløv (men ikke neon)
-                ((ArrayMesh)m).SurfaceSetMaterial(1, lm);
-            }
-            birch.Add(new ModelVariant { Mesh = m, Aabb = v.Aabb, BaseScale = 0.85f });
-        }
+        var birch = oldTrees ? OldBirch(birchBark) : LeafTreeBuilder.Variants(LeafTreeBuilder.Species.Birch, birchBark);
         Def(PropKind.Birch, "Bjørk", PropRole.Tree, birch, proc.Birch, d =>
         {
             d.MinScale = 0.75f; d.MaxScale = 1.2f; d.Sink = 0.15f; d.TrunkRadius = 0.25f;
             d.Tool = ToolKind.Axe; d.Hp = 4; d.LogsOnFell = 2; d.BranchesOnFell = 2;
         });
-        var oak = new List<ModelVariant>();
-        foreach (int i in new[] { 1, 2, 5 })
-        {
-            var v = ModelLibrary.Variant(Nature + $"CommonTree_{i}.gltf", 1.15f);
-            if (v != null) oak.Add(v);
-        }
+        var oak = oldTrees ? OldOak() : LeafTreeBuilder.Variants(LeafTreeBuilder.Species.Oak,
+            new StandardMaterial3D { ResourceName = "Bark", AlbedoColor = new Color(0.36f, 0.31f, 0.26f), Roughness = 0.95f });
         Def(PropKind.Oak, "Eik", PropRole.Tree, oak, proc.Oak, d =>
         {
             d.MinScale = 0.85f; d.MaxScale = 1.3f; d.Sink = 0.15f; d.TrunkRadius = 0.4f;
@@ -223,11 +211,7 @@ public static class PropLibrary
         // ---------- Vind (og årstidsfarger) på alt som gror
         //                                  bend  flutter  løvtre
         ApplyWind(PropKind.Spruce,          0.55f, 0.35f, false);
-        // Granbaret er flate kort: ton ut kort som ses fra kanten (foliage.gdshader: card_fade)
-        foreach (var v in Defs[(int)PropKind.Spruce].Variants)
-            for (int s = 0; s < v.Mesh.GetSurfaceCount(); s++)
-                if (v.Mesh.SurfaceGetMaterial(s) is ShaderMaterial sm && sm.ResourceName == "Needles")
-                    sm.SetShaderParameter("card_fade", 1f);
+
         ApplyWind(PropKind.Pine,            0.65f, 0.45f, false);
         ApplyWind(PropKind.Birch,           1.35f, 1.4f,  true);
         ApplyWind(PropKind.Oak,             0.8f,  1.0f,  true);
@@ -235,6 +219,12 @@ public static class PropLibrary
         ApplyWind(PropKind.Bush,            22f,   1.2f,  true);
         ApplyWind(PropKind.Fern,            45f,   1.6f,  true);
         ApplyWind(PropKind.Flower,          60f,   1.8f,  false);
+        // Bar- og lauvkort er flate: ton ut kort som ses fra kanten (foliage.gdshader: card_fade)
+        foreach (var kind in new[] { PropKind.Spruce, PropKind.Birch, PropKind.Oak })
+            foreach (var v in Defs[(int)kind].Variants)
+                for (int s = 0; s < v.Mesh.GetSurfaceCount(); s++)
+                    if (v.Mesh.SurfaceGetMaterial(s) is ShaderMaterial sm && (sm.ResourceName == "Needles" || sm.ResourceName == "Leaves"))
+                        sm.SetShaderParameter("card_fade", 1f);
 
         MaxVariants = 1;
         foreach (var d in Defs) MaxVariants = Math.Max(MaxVariants, d.Variants.Length);
@@ -356,6 +346,34 @@ public static class PropLibrary
     }
 
     private static Shader FoliageShader;
+
+    private static List<ModelVariant> OldBirch(Material birchBark)
+    {
+        var birch = new List<ModelVariant>();
+        foreach (var v in ModelLibrary.Series(Nature + "CommonTree_{0}.gltf", 3, 4))
+        {
+            var m = ModelLibrary.WithMaterial(v.Mesh, 0, birchBark);
+            if (m.GetSurfaceCount() > 1 && m.SurfaceGetMaterial(1) is BaseMaterial3D leaves)
+            {
+                var lm = (BaseMaterial3D)leaves.Duplicate();
+                lm.AlbedoColor = new Color(1.02f, 1.1f, 0.74f);
+                ((ArrayMesh)m).SurfaceSetMaterial(1, lm);
+            }
+            birch.Add(new ModelVariant { Mesh = m, Aabb = v.Aabb, BaseScale = 0.85f });
+        }
+        return birch;
+    }
+
+    private static List<ModelVariant> OldOak()
+    {
+        var oak = new List<ModelVariant>();
+        foreach (int i in new[] { 1, 2, 5 })
+        {
+            var v = ModelLibrary.Variant(Nature + $"CommonTree_{i}.gltf", 1.15f);
+            if (v != null) oak.Add(v);
+        }
+        return oak;
+    }
 
     private static Material BirchMaterial()
     {

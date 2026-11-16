@@ -310,7 +310,7 @@ public static class SpruceBuilder
     }
 
     /// <summary>Skalerer alfa i hver mipmap så like stor andel er over terskelen som i nivå 0.</summary>
-    private static void PreserveCoverage(Image img, float cut)
+    internal static void PreserveCoverage(Image img, float cut)
     {
         var d = img.GetData();
         int levels = img.GetMipmapCount() + 1;
