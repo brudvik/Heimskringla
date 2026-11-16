@@ -70,43 +70,14 @@ vec2 ripple_grad(vec2 p) {
 	return vec2(hx - h0, hz - h0) / e;
 }
 
-// ---------------------------------------------------------------- Himmel med skyer (kopi av sky.gdshader)
-float sky_hash(vec2 p) {
-	p = fract(p * vec2(123.34, 456.21));
-	p += dot(p, p + 45.32);
-	return fract(p.x * p.y);
-}
-float sky_vnoise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	return mix(mix(sky_hash(i), sky_hash(i + vec2(1, 0)), u.x), mix(sky_hash(i + vec2(0, 1)), sky_hash(i + vec2(1, 1)), u.x), u.y);
-}
-float sky_fbm(vec2 p) {
-	float s = 0.0, a = 0.5;
-	for (int i = 0; i < 5; i++) {
-		s += sky_vnoise(p) * a;
-		p = p * 2.02 + vec2(5.3, 1.7);
-		a *= 0.5;
-	}
-	return s;
-}
+// ---------------------------------------------------------------- Himmel med skyer (samme skyer som himmelen)
+#include "res://shaders/clouds.gdshaderinc"
 vec3 sky_color(vec3 d) {
 	float up = clamp(d.y, 0.0, 1.0);
 	vec3 col = mix(pow(sky_horizon, vec3(2.2)), pow(sky_zenith, vec3(2.2)), pow(up, 0.55));
-	if (d.y > 0.0) {
-		vec2 uv = d.xz / (d.y + 0.12) * 1.4 + cloud_offset;
-		float cc = cloud_params.x, dark = cloud_params.y;
-		float c = sky_fbm(uv);
-		float cov = smoothstep(1.0 - cc - 0.12, 1.0 - cc + 0.28, c);
-		cov = max(cov, smoothstep(0.75, 1.0, cc));
-		float thick = sky_fbm(uv * 2.0 + 7.0);
-		vec3 ccol = mix(pow(cloud_shadow, vec3(2.2)), pow(cloud_light, vec3(2.2)), clamp(0.35 + thick * 0.6, 0.0, 1.0));
-		ccol *= mix(1.0, 0.45 + thick * 0.3, dark);
-		ccol = mix(ccol, ccol * vec3(0.12, 0.13, 0.18), cloud_params.z);
-		col = mix(col, ccol, cov * smoothstep(0.0, 0.15, d.y) * 0.92);
-	}
-	return col;
+	vec4 cl = cl_sky(d, cloud_offset, cloud_params.x, cloud_params.y, cloud_params.z, sun_direction,
+	                 pow(cloud_light, vec3(2.2)), pow(cloud_shadow, vec3(2.2)), 4);
+	return mix(col, cl.rgb, cl.a);
 }
 
 // ---------------------------------------------------------------- Gerstner
@@ -176,7 +147,12 @@ void fragment() {
 	vec2 g0 = ripple_grad(rp - flow * ph0 * cyc * 0.9 - drift);
 	vec2 g1 = ripple_grad(rp - flow * ph1 * cyc * 0.9 - drift + vec2(37.0, 11.0));
 	vec2 g = mix(g1, g0, wgt);
-	float rip = wave_strength * (0.18 + wind_strength * 0.5 + min(speed, 2.0) * 0.25) * fade;
+	// Vindkast ("kattepoter"): flekker med krusning som feier over vannet; mellom dem er vannet
+	// nesten speilblankt i stille vær. Jo mer vind, jo mer av flaten er krusete.
+	float gust = wind_gust(world_pos.xz * 0.6, TIME);
+	float paws = smoothstep(0.35, 0.85, gnoise(world_pos.xz * 0.045 - wind_dir * TIME * (1.5 + wind_strength * 4.0)) * 0.9 + 0.5 + gust * 0.3 + wind_strength * 0.6);
+	float calm = mix(0.04, 1.0, paws);
+	float rip = wave_strength * (0.05 + wind_strength * 0.75 * calm + calm * 0.12 + min(speed, 2.0) * 0.25) * fade;
 	vec3 n_world = normalize(wave_normal + vec3(-g.x, 0.0, -g.y) * rip * 0.35);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 
@@ -220,6 +196,8 @@ void fragment() {
 	vec3 rw = (INV_VIEW_MATRIX * vec4(rv, 0.0)).xyz;
 	rw.y = abs(rw.y);
 	vec3 sky = sky_color(normalize(rw));
+	// I sterk vind er speilingen oppbrutt: bland mot horisontfargen (ingen skarpe skyer i krappe bølger)
+	sky = mix(sky, pow(mix(sky_horizon, sky_zenith, 0.35), vec3(2.2)), clamp(rip * 0.5 - 0.05, 0.0, 0.5));
 	vec3 refl = sky;
 	float hit = 0.0;
 	if (reflect_strength > 0.0 && rv.z < 0.2) {
@@ -275,7 +253,7 @@ void fragment() {
 	}
 	// Myk overgang mot land (ingen skarp kant)
 	ALPHA = clamp(smoothstep(0.0, 0.25, water_depth) + foam, 0.0, 1.0);
-	ROUGHNESS = mix(0.04 + wind_strength * 0.05, 0.6, foam);
+	ROUGHNESS = mix(0.02 + rip * 0.08, 0.6, foam);
 	METALLIC = 0.0;
 	SPECULAR = 0.5;
 }

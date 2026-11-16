@@ -79,8 +79,9 @@ public static class SpruceBuilder
             for (int s = 0; s < Sides; s++)
             {
                 int a = k * (Sides + 1) + s, b = a + Sides + 1;
-                idx.Add(a); idx.Add(b); idx.Add(a + 1);
-                idx.Add(a + 1); idx.Add(b); idx.Add(b + 1);
+                // Godot: forsiden er med klokka sett utenfra (ellers lyses stammen innenfra og ser hul ut)
+                idx.Add(a); idx.Add(a + 1); idx.Add(b);
+                idx.Add(a + 1); idx.Add(b + 1); idx.Add(b);
             }
             AddSurface(mesh, v, n, uv, null, idx, null, bark);
         }

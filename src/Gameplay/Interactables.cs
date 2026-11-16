@@ -90,7 +90,21 @@ public partial class TreeNode : StaticBody3D, IHittable
     public PropDef Def;
     public PropInstance Inst;
     public VegetationManager Manager;
-    private int _hp = -1;
+    private float _hp = -1f;
+
+    /// <summary>
+    /// Hvor mange "hogg" treet tåler: treslagets verdi skalert med størrelsen (et ungt tre går i
+    /// ett–to hogg, en gammel kjempe tar mange).
+    /// </summary>
+    private float MaxHp
+    {
+        get
+        {
+            var v = Def.Variant(Inst.Variant);
+            float typical = v.BaseScale * (Def.MinScale + Def.MaxScale) * 0.5f;
+            return Mathf.Max(1f, Def.Hp * Mathf.Clamp(Inst.Scale / Mathf.Max(typical, 0.01f), 0.3f, 1.9f));
+        }
+    }
 
     public string HitPrompt(ToolKind tool) =>
         tool == ToolKind.Axe ? $"[Venstre mus] Hugg {Def.Name}" : $"{Def.Name} (trenger øks)";
@@ -102,8 +116,15 @@ public partial class TreeNode : StaticBody3D, IHittable
             Hud.Instance?.Toast("Du trenger en øks for å felle trær");
             return;
         }
-        if (_hp < 0) _hp = Def.Hp;
-        _hp--;
+        if (_hp < 0f) _hp = MaxHp;
+        // Ferdighet: en nybegynner tar 1 per hogg, en dyktig hogger opptil 2.5, med litt variasjon
+        // (noen hogg sitter bedre enn andre)
+        float skill = WorldState.Skill("Hogging");
+        float dmg = (1f + skill / 66f) * (float)GD.RandRange(0.8, 1.2);
+        _hp -= dmg;
+        float before = Mathf.Floor(skill / 10f);
+        float now = WorldState.Practice("Hogging", 0.8f);
+        if (Mathf.Floor(now / 10f) > before) Hud.Instance?.Toast($"Hogging økte til {Mathf.FloorToInt(now)}");
         // Treffpunkt på stammen, på siden mot spilleren
         var toPlayer = p.GlobalPosition - GlobalPosition;
         toPlayer.Y = 0;
@@ -122,7 +143,7 @@ public partial class TreeNode : StaticBody3D, IHittable
         tw.TweenProperty(mesh, "rotation", new Vector3(-toPlayer.Z * amp, 0, toPlayer.X * amp), 0.05);
         tw.TweenProperty(mesh, "rotation", new Vector3(toPlayer.Z * amp * 0.5f, 0, -toPlayer.X * amp * 0.5f), 0.1);
         tw.TweenProperty(mesh, "rotation", Vector3.Zero, 0.2);
-        if (_hp > 0) return;
+        if (_hp > 0f) return;
 
         Manager.OnHarvested(Inst);
         var dir = GlobalPosition - p.GlobalPosition;
@@ -137,7 +158,7 @@ public partial class TreeNode : StaticBody3D, IHittable
     }
 
     public string TargetName => Def.Name;
-    public float HealthFraction => _hp < 0 ? 1f : Mathf.Clamp(_hp / (float)Def.Hp, 0f, 1f);
+    public float HealthFraction => _hp < 0f ? 1f : Mathf.Clamp(_hp / MaxHp, 0f, 1f);
 
     private MeshInstance3D _notch;
     private static StandardMaterial3D _notchMat;
@@ -292,7 +313,7 @@ public partial class FallingTree : RigidBody3D
             _pushed = true;
             float h = TrunkLength;
             // Et lite dytt; tyngdekraften gjør resten (treet akselererer mens det faller)
-            ApplyImpulse(FallDir * Mass * 0.45f, GlobalBasis * new Vector3(0, h * 0.9f, 0));
+            ApplyImpulse(FallDir * Mass * 0.22f, GlobalBasis * new Vector3(0, h * 0.9f, 0));
         }
         // Nedslag: når treet ligger nesten flatt
         if (!_landed && _t > 0.5f && GlobalBasis.Y.Normalized().Y < 0.35f)

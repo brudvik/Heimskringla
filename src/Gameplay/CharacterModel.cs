@@ -36,7 +36,8 @@ public partial class CharacterModel : PlayerVisual
     public static bool Available => ResourceLoader.Exists(BodyPath) && ResourceLoader.Exists(AnimPath);
 
     public override float SwingDuration => _swingLength;
-    public override float HitMoment => 0.45f;
+    public override float HitMoment => _hitMoment;
+    private float _hitMoment = 0.45f;
 
     public override void _Ready()
     {
@@ -45,6 +46,9 @@ public partial class CharacterModel : PlayerVisual
         body.Rotation = new Vector3(0, Mathf.Pi, 0);
         AddChild(body);
         var skel = (Skeleton3D)body.FindChildren("*", "Skeleton3D", true, false)[0];
+
+        // Antrekket (Male_Peasant) har ikke hode: hent hode, øyne og øyenbryn fra grunnfiguren
+        if (BodyPath != BasePath && ResourceLoader.Exists(BasePath)) AttachHead(skel);
 
         // Hår og skjegg er rigget til samme skjelett: flytt meshene inn i figurens Skeleton3D
         foreach (var path in HairPaths)
@@ -94,7 +98,11 @@ public partial class CharacterModel : PlayerVisual
         _anim = new AnimationPlayer { Name = "AnimationPlayer" };
         body.AddChild(_anim);
         _anim.AddAnimationLibrary("", lib);
-        if (lib.HasAnimation("Sword_Attack")) _swingLength = (float)lib.GetAnimation("Sword_Attack").Length / 1.4f;
+        if (lib.HasAnimation("Sword_Attack"))
+        {
+            _swingLength = (float)lib.GetAnimation("Sword_Attack").Length / 1.4f;
+            _hitMoment = FindImpact(skel, "Sword_Attack");
+        }
         Play("Idle_Loop", 1f);
 
         // Verktøy
@@ -150,6 +158,84 @@ public partial class CharacterModel : PlayerVisual
     private static Shader ToolShader;
 
     /// <summary>Tre/stål-materialet for en Kenney-verktøyflate (null hvis den ikke har palett-tekstur).</summary>
+    /// <summary>
+    /// Finner treffpunktet i slaganimasjonen: øyeblikket hånda (og dermed øksehodet) går raskest,
+    /// i siste del av svinget. Da kommer flis, rist og fall samtidig med at øksa treffer stammen.
+    /// </summary>
+    private float FindImpact(Skeleton3D skel, string anim)
+    {
+        int hand = skel.FindBone("hand_r");
+        if (hand < 0) return 0.45f;
+        float len = (float)_anim.GetAnimation(anim).Length;
+        _anim.Play(anim);
+        Vector3 prev = Vector3.Zero;
+        float best = -1f, bestT = len * 0.45f;
+        const int Steps = 60;
+        for (int i = 0; i <= Steps; i++)
+        {
+            float t = len * i / Steps;
+            _anim.Seek(t, true);
+            skel.ForceUpdateAllBoneTransforms();
+            var pos = skel.GetBoneGlobalPose(hand).Origin;
+            if (i > 0 && t > len * 0.2f && t < len * 0.85f)
+            {
+                float speed = pos.DistanceTo(prev);
+                if (speed > best) { best = speed; bestT = t; }
+            }
+            prev = pos;
+        }
+        _anim.Stop();
+        float m = Mathf.Clamp(bestT / len, 0.2f, 0.8f);
+        GD.Print($"Slag: treffpunkt {m:0.00} av {len:0.00} s");
+        return m;
+    }
+
+    /// <summary>
+    /// Hodet fra grunnfiguren: kroppsmeshen klippes til trekantene over kragen (i hvilestilling),
+    /// øyne og øyenbryn tas med som de er. Alt flyttes inn i antrekkets skjelett (samme rigg).
+    /// </summary>
+    private static void AttachHead(Skeleton3D skel)
+    {
+        const float NeckY = 1.5f;   // antrekkets krage/skuldre går til ~1.53–1.56 m
+        var baseScene = GD.Load<PackedScene>(BasePath).Instantiate<Node3D>();
+        foreach (var n in baseScene.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            var mi = (MeshInstance3D)n;
+            if (mi.Mesh == null) continue;
+            Mesh mesh = mi.Mesh;
+            if (mi.Name.ToString().Contains("SuperHero"))
+            {
+                var head = new ArrayMesh();
+                for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
+                {
+                    var arr = mi.Mesh.SurfaceGetArrays(s);
+                    var pos = arr[(int)Mesh.ArrayType.Vertex].AsVector3Array();
+                    var idx = arr[(int)Mesh.ArrayType.Index].AsInt32Array();
+                    var keep = new List<int>(idx.Length / 4);
+                    for (int i = 0; i + 2 < idx.Length; i += 3)
+                        if (pos[idx[i]].Y > NeckY && pos[idx[i + 1]].Y > NeckY && pos[idx[i + 2]].Y > NeckY)
+                        {
+                            keep.Add(idx[i]); keep.Add(idx[i + 1]); keep.Add(idx[i + 2]);
+                        }
+                    if (keep.Count == 0) continue;
+                    arr[(int)Mesh.ArrayType.Index] = keep.ToArray();
+                    head.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arr);
+                    head.SurfaceSetMaterial(head.GetSurfaceCount() - 1, mi.GetActiveMaterial(s));
+                }
+                if (head.GetSurfaceCount() == 0) continue;
+                mesh = head;
+            }
+            var skin = mi.Skin;
+            mi.GetParent().RemoveChild(mi);
+            mi.Owner = null;
+            mi.Mesh = mesh;
+            mi.Skin = skin;
+            skel.AddChild(mi);
+            mi.Skeleton = mi.GetPathTo(skel);
+        }
+        baseScene.QueueFree();
+    }
+
     public static Material ToolMaterial(Material src)
     {
         if (src is not BaseMaterial3D bm || bm.AlbedoTexture == null) return null;

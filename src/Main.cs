@@ -323,7 +323,8 @@ public partial class Main : Node3D
                 GD.Print($"[autotest] feller {tree.Def.Name} {tree.GlobalPosition.DistanceTo(_player.GlobalPosition):F1} m unna");
                 var look = tree.GlobalPosition - _player.GlobalPosition;
                 _player.Teleport(tree.GlobalPosition.X - look.Normalized().X * 2.5f, tree.GlobalPosition.Z - look.Normalized().Z * 2.5f);
-                for (int i = 0; i < tree.Def.Hp - 1; i++) tree.Hit(_player, ToolKind.Axe);
+                // Hogg til treet er nesten nede (antall avhenger av størrelse og ferdighet)
+                for (int i = 0; i < 60 && tree.HealthFraction > 0.2f; i++) tree.Hit(_player, ToolKind.Axe);
                 _autoTree = tree;
                 _player.CameraYaw = Mathf.Atan2(-(tree.GlobalPosition.X - _player.GlobalPosition.X), -(tree.GlobalPosition.Z - _player.GlobalPosition.Z));
                 _player.CameraPitch = -0.15f;
@@ -331,7 +332,8 @@ public partial class Main : Node3D
             }
             case 6: // siste hugg (treet faller), plukk opp alt løst, hakk en stein, plukk en grein/stein
             {
-                if (_autoTree != null && IsInstanceValid(_autoTree)) _autoTree.Hit(_player, ToolKind.Axe);
+                for (int i = 0; i < 10 && _autoTree != null && IsInstanceValid(_autoTree) && !_autoTree.IsQueuedForDeletion(); i++)
+                    _autoTree.Hit(_player, ToolKind.Axe);
                 _autoTree = null;
                 int picked = 0;
                 foreach (var n in GetTree().Root.FindChildren("*", "RigidBody3D", true, false))

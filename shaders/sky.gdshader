@@ -16,6 +16,8 @@ uniform float aurora = 0.0;                  // nordlysstyrke 0..1
 uniform float cloud_dark = 0.0;              // 0 = hvite skyer, 1 = tunge regnskyer
 uniform vec2 wind_offset = vec2(0.0);        // skyforskyvning (driver med vinden)
 
+#include "res://shaders/clouds.gdshaderinc"
+
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
@@ -106,19 +108,9 @@ void sky() {
 		// Nordlys
 		if (aurora > 0.001) col += aurora_light(d, TIME) * aurora * night;
 
-		// Skyer: projiser på et skyplan
-		if (d.y > 0.0) {
-			vec2 uv = d.xz / (d.y + 0.12) * 1.4 + wind_offset;
-			float c = fbm(uv);
-			float cov = smoothstep(1.0 - cloud_coverage - 0.12, 1.0 - cloud_coverage + 0.28, c);
-			cov = max(cov, smoothstep(0.75, 1.0, cloud_coverage));   // helt overskyet
-			float thick = fbm(uv * 2.0 + 7.0);
-			vec3 ccol = mix(cloud_shadow, cloud_light, clamp(0.35 + thick * 0.6 + pow(sd, 4.0) * 0.4 * (1.0 - cloud_dark), 0.0, 1.0));
-			ccol *= mix(1.0, 0.45 + thick * 0.3, cloud_dark);
-			ccol = mix(ccol, ccol * vec3(0.12, 0.13, 0.18), night);
-			float fade = smoothstep(0.0, 0.15, d.y);
-			col = mix(col, ccol, cov * fade * 0.92);
-		}
+		// Skyer (felles modell med vannspeilingen, se clouds.gdshaderinc)
+		vec4 cl = cl_sky(d, wind_offset, cloud_coverage, cloud_dark, night, sun_dir, cloud_light, cloud_shadow, 6);
+		col = mix(col, cl.rgb, cl.a);
 	}
 	COLOR = col;
 }

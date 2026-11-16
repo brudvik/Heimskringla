@@ -21,7 +21,8 @@ uniform float flutter = 1.0;
 uniform float leafy = 0.0;           // 1 = løv (får årstidsfarge og gjennomskinn)
 uniform float deciduous = 0.0;       // 1 = løvtre (blir gult/rødt om høsten)
 uniform float bark = 0.0;            // 1 = bark/stamme (får barkdetalj, mose og mørk rot)
-uniform float bark_layer = 0.0;      // skive i detail-teksturen: 0 = bartrebark, 1 = løvtrebark
+uniform float bark_layer = 0.0;
+uniform float card_fade = 0.0;       // 1 = flate kort (granbar): tones ut når de ses fra kanten      // skive i detail-teksturen: 0 = bartrebark, 1 = løvtrebark
 
 global uniform sampler2DArray detail_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 global uniform sampler2DArray detail_nrao : filter_linear_mipmap_anisotropic, repeat_enable;
@@ -98,6 +99,12 @@ void fragment() {
 	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
 	if (leafy > 0.5 && !IN_SHADOW_PASS) {
 		float f = view_fade(v_world, INV_VIEW_MATRIX[3].xyz);
+		if (card_fade > 0.5) {
+			// Kortet sett fra kanten: tekstur og glans blir til en hvit/grå flate; ton det ut
+			vec3 fn = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
+			float edge = abs(dot(fn, normalize(-VERTEX)));
+			f = max(f, 1.0 - smoothstep(0.08, 0.3, edge));
+		}
 		if (f > 0.001 && f * 1.02 > bayer4(FRAGCOORD.xy)) discard;
 	}
 	if (leafy > 0.5 && deciduous > 0.5 && season_leaf_drop > 0.001) {
@@ -173,5 +180,5 @@ void fragment() {
 	}
 	if (use_normal) NORMAL_MAP = texture(normal_tex, UV).rgb;
 	ROUGHNESS = mix(leafy > 0.5 ? max(roughness, 0.7) : roughness, 0.35, wetness * (1.0 - snow) * 0.8);
-	SPECULAR = 0.3;
+	SPECULAR = leafy > 0.5 ? 0.15 : 0.3;
 }

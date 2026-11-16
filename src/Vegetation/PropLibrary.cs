@@ -223,6 +223,11 @@ public static class PropLibrary
         // ---------- Vind (og årstidsfarger) på alt som gror
         //                                  bend  flutter  løvtre
         ApplyWind(PropKind.Spruce,          0.55f, 0.35f, false);
+        // Granbaret er flate kort: ton ut kort som ses fra kanten (foliage.gdshader: card_fade)
+        foreach (var v in Defs[(int)PropKind.Spruce].Variants)
+            for (int s = 0; s < v.Mesh.GetSurfaceCount(); s++)
+                if (v.Mesh.SurfaceGetMaterial(s) is ShaderMaterial sm && sm.ResourceName == "Needles")
+                    sm.SetShaderParameter("card_fade", 1f);
         ApplyWind(PropKind.Pine,            0.65f, 0.45f, false);
         ApplyWind(PropKind.Birch,           1.35f, 1.4f,  true);
         ApplyWind(PropKind.Oak,             0.8f,  1.0f,  true);
