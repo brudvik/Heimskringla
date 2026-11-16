@@ -54,6 +54,12 @@ void vertex() {
 	float temp = texture(world_map, (root.xz - world_rect.xy) * world_rect.zw).r;
 	// Årstidssnø, og alltid snø i de kaldeste sonene (samme grense som snøbakken i Biomes)
 	v_snow = smoothstep(temp - 0.03, temp + 0.03, max(snow_line, 0.13));
+	// Løv: bøy normalen mot en "kuppel" rundt stammen, så kronen lyses som én myk form i stedet
+	// for mange flate kort (de skarpe lyse/mørke flekkene var det som så "klippet" ut)
+	if (leafy > 0.5) {
+		vec3 dome = normalize(vec3(VERTEX.x, max(VERTEX.y * 0.25, 0.0) + length(VERTEX.xz) * 0.6 + 0.2, VERTEX.z));
+		NORMAL = normalize(mix(NORMAL, dome, 0.7));
+	}
 	VERTEX += wind_displace(VERTEX, MODEL_MATRIX, TIME, bend, flutter);
 	vec3 r = MODEL_MATRIX[3].xyz;
 	v_hash = fract(sin(dot(r.xz, vec2(12.9898, 78.233))) * 43758.5453);
@@ -75,7 +81,13 @@ void fragment() {
 		vec3 autumn = season_leaf_tint.rgb * (0.6 + lum * 1.6) * mix(vec3(1.0), vec3(1.15, 0.8, 0.6), v_hash);
 		c.rgb = mix(c.rgb, autumn, amt);
 		c.rgb = mix(c.rgb, c.rgb * vec3(0.8, 0.85, 0.85), season_conifer * (1.0 - deciduous));
-		BACKLIGHT = c.rgb * 0.35;
+		// Fargevariasjon per bladklump (litt lysere/gulere og mørkere/blåere partier)
+		float cl = ihash(obj_pos * 1.2 + v_hash * 9.0);
+		c.rgb *= mix(vec3(0.85, 0.9, 0.95), vec3(1.12, 1.08, 0.88), cl);
+		// Lyset skinner gjennom bladene fra baksiden (gulgrønt), og kronen er mørkere innerst
+		BACKLIGHT = c.rgb * vec3(0.9, 1.0, 0.5) * 0.8;
+		float inner = clamp(length(obj_pos.xz) * 0.35, 0.0, 1.0);
+		c.rgb *= mix(0.65, 1.0, inner);
 	}
 	// Bark: ekte barkdetalj (triplanar i objektrom, så den ikke "flyter" når treet svaier),
 	// mose på nordsiden og nederst, mørkere ved roten
@@ -124,6 +136,6 @@ void fragment() {
 		ALPHA_SCISSOR_THRESHOLD = alpha_cut;
 	}
 	if (use_normal) NORMAL_MAP = texture(normal_tex, UV).rgb;
-	ROUGHNESS = mix(roughness, 0.35, wetness * (1.0 - snow) * 0.8);
+	ROUGHNESS = mix(leafy > 0.5 ? max(roughness, 0.7) : roughness, 0.35, wetness * (1.0 - snow) * 0.8);
 	SPECULAR = 0.3;
 }

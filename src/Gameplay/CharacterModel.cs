@@ -147,12 +147,26 @@ public partial class CharacterModel : PlayerVisual
         _ik.Influence = 0f;
     }
 
+    private static Shader ToolShader;
+
     private static Node3D LoadTool(string path, Node3D parent)
     {
         if (!ResourceLoader.Exists(path)) return new Node3D();
         var t = GD.Load<PackedScene>(path).Instantiate<Node3D>();
         // Grep litt opp på skaftet
         t.Position = new Vector3(0, -0.06f, 0);
+        // Byt den flate Kenney-paletten mot tre/stål-shaderen (paletten brukes til å skille materialene)
+        foreach (var n in t.FindChildren("*", "MeshInstance3D", true, false))
+        {
+            var mi = (MeshInstance3D)n;
+            for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
+            {
+                if (mi.Mesh.SurfaceGetMaterial(s) is not BaseMaterial3D bm || bm.AlbedoTexture == null) continue;
+                var mat = new ShaderMaterial { Shader = ToolShader ??= GD.Load<Shader>("res://shaders/tool.gdshader") };
+                mat.SetShaderParameter("palette", bm.AlbedoTexture);
+                mi.SetSurfaceOverrideMaterial(s, mat);
+            }
+        }
         parent.AddChild(t);
         return t;
     }

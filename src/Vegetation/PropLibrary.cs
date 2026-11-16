@@ -145,7 +145,8 @@ public static class PropLibrary
         foreach (var v in boulder) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         Def(PropKind.Boulder, "Steinblokk", PropRole.Rock, boulder, proc.Boulder, d =>
         {
-            d.MaxDistance = 550f; d.MinScale = 0.6f; d.MaxScale = 1.6f; d.Sink = 0.15f;
+            // Godt nedsunket (steinblokker ligger delvis begravd, ikke oppå bakken)
+            d.MaxDistance = 550f; d.MinScale = 0.6f; d.MaxScale = 1.6f; d.Sink = 0.55f;
             d.Tool = ToolKind.Pickaxe; d.Hp = 6; d.Item = "Stein"; d.ItemsOnHit = 1; d.ItemsOnBreak = 3;
         });
         var stone = ModelLibrary.Series(Nature + "Pebble_Round_{0}.gltf", 1, 5, 0.8f);

@@ -44,6 +44,24 @@ public static class VegetationGenerator
     };
 
     private static readonly float[] MinNormalY = { 0.82f, 0.82f, 0.82f, 0.85f, 0.8f, 0.75f, 0.78f, 0.8f, 0.8f, 0.5f, 0.7f, 0.75f, 0.35f, 0.85f };
+    /// <summary>
+    /// Steiner og klipper står på det laveste punktet under seg (ellers henger nedsiden i lufta i
+    /// bratt terreng); andre props på senterhøyden.
+    /// </summary>
+    private static float BaseHeight(WorldGenerator w, PropDef def, int variant, float scale, float x, float z, float h)
+    {
+        if (def.Role != PropRole.Rock && def.Role != PropRole.Obstacle) return h;
+        var size = def.Variants[variant].Aabb.Size;
+        float r = Math.Max(size.X, size.Z) * 0.4f * scale;
+        float m = h;
+        for (int i = 0; i < 6; i++)
+        {
+            float a = i * MathF.Tau / 6f;
+            m = MathF.Min(m, w.GetHeight(x + MathF.Cos(a) * r, z + MathF.Sin(a) * r));
+        }
+        return m;
+    }
+
     private const int FlowerKind = (int)PropKind.Flower, CliffKind = (int)PropKind.Cliff;
 
     public static long MakeId(int cx, int cz, int index) =>
@@ -122,7 +140,7 @@ public static class VegetationGenerator
                 Kind = (PropKind)kind,
                 Variant = variant,
                 Cold = cold,
-                Pos = new Vector3(x, h - def.Sink * scale, z),
+                Pos = new Vector3(x, BaseHeight(w, def, variant, scale, x, z, h) - def.Sink * scale, z),
                 Yaw = yaw,
                 Scale = scale,
                 Id = MakeId(cx, cz, myIndex),
