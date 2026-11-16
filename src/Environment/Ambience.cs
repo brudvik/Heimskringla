@@ -7,9 +7,10 @@ using Heimskringla.World;
 namespace Heimskringla.Environment;
 
 /// <summary>
-/// Prosedyrisk lydbilde (ingen lydfiler): vind, regn, torden, elv/foss, brenninger, fugler og sirisser.
-/// Alt syntetiseres i sanntid i en AudioStreamGenerator og blandes etter vær, tid, årstid og hvor
-/// spilleren er. Vann- og kystlyder panoreres mot kilden.
+/// Lydbilde: vinden er ekte opptak (CC0-løkker i assets/audio/wind, se scripts/fetch_wind_sounds.py)
+/// som blandes etter vindstyrke, skog og hvor åpent/høyt spilleren står. Regn, torden, elv/foss,
+/// brenninger, fugler og sirisser syntetiseres i sanntid i en AudioStreamGenerator og blandes etter
+/// vær, tid, årstid og hvor spilleren er. Vann- og kystlyder panoreres mot kilden.
 /// </summary>
 public partial class Ambience : Node
 {
@@ -18,14 +19,20 @@ public partial class Ambience : Node
     private readonly Random _rng = new(1234);
 
     // Målnivåer (oppdateres sjeldent) og glidende nivåer (per sample)
-    private float _tWind, _tRain, _tRiver, _tFalls, _tSurf, _tBirds, _tCrickets;
-    private float _gWind, _gRain, _gRiver, _gFalls, _gSurf;
+    private float _tRain, _tRiver, _tFalls, _tSurf, _tBirds, _tCrickets;
+    private float _gRain, _gRiver, _gFalls, _gSurf;
     private float _panWater, _panSurf, _gPanWater, _gPanSurf;
-    private float _windCut = 400f;
+
+    // Vindlag (opptak): gress/lett, skog/middels, sterk, åpent fjell
+    private static readonly string[] WindFiles = { "wind_grass", "wind_forest", "wind_strong", "wind_open" };
+    private const float WindDb = -9f;          // nivå for et lag på full styrke
+    private readonly AudioStreamPlayer[] _wind = new AudioStreamPlayer[4];
+    private readonly float[] _windGain = new float[4];
+    private readonly float[] _windTarget = new float[4];
+    private float _forest, _exposed, _gustT;
     private float _scanTimer;
 
     // Filtertilstander
-    private float _brownW, _lpW1, _lpW2, _bpW1, _bpW2;
     private float _hpR, _lpR, _prevR;
     private float _brownRiv, _lpRiv, _bpF1, _bpF2;
     private float _brownS, _lpS, _swellPhase;
@@ -50,6 +57,19 @@ public partial class Ambience : Node
         AddChild(player);
         player.Play();
         _pb = (AudioStreamGeneratorPlayback)player.GetStreamPlayback();
+
+        for (int i = 0; i < WindFiles.Length; i++)
+        {
+            var path = $"res://assets/audio/wind/{WindFiles[i]}.ogg";
+            if (!ResourceLoader.Exists(path)) continue;
+            var stream = GD.Load<AudioStreamOggVorbis>(path);
+            stream.Loop = true;
+            var p = new AudioStreamPlayer { Stream = stream, VolumeDb = -80f, Name = "Wind_" + WindFiles[i] };
+            AddChild(p);
+            // Start lagene på ulike steder i løkkene så de ikke svinger i takt
+            p.Play((float)_rng.NextDouble() * (float)stream.GetLength());
+            _wind[i] = p;
+        }
     }
 
     public override void _Process(double delta)
@@ -57,7 +77,8 @@ public partial class Ambience : Node
         float dt = (float)delta;
         _scanTimer -= dt;
         if (_scanTimer <= 0f) { _scanTimer = 0.4f; ScanSurroundings(); }
-        UpdateTargets();
+        UpdateTargets(dt);
+        UpdateWind(dt);
         Fill();
     }
 
@@ -122,6 +143,11 @@ public partial class Ambience : Node
         // Fugler: dag, ikke vinter, ikke regn/storm; mest i skog
         var biome = w.GetBiome(p.X, p.Z);
         float forest = biome is Biome.Forest or Biome.PineForest ? 1f : biome is Biome.Meadow or Biome.Swamp ? 0.5f : 0.1f;
+        // Vindlydene: står vi i skog, eller åpent og høyt (fjell, snø, lynghei, høyt over bakken)?
+        _forest = biome is Biome.Forest or Biome.PineForest ? 1f : biome is Biome.Swamp ? 0.4f : 0f;
+        float open = biome is Biome.Mountain or Biome.Snow ? 1f : biome is Biome.Tundra ? 0.6f : 0f;
+        _exposed = Mathf.Clamp(Mathf.Max(open, Biomes.SmoothStep(150f, 450f, p.Y)) + height / 120f, 0f, 1f);
+        _forest *= 1f - _exposed;
         var dn = GetParent().GetNodeOrNull<DayNight>("DayNight");
         var wx = Weather.Current;
         float day = dn != null ? Biomes.SmoothStep(0.22f, 0.3f, dn.TimeOfDay) * (1f - Biomes.SmoothStep(0.8f, 0.88f, dn.TimeOfDay)) : 1f;
@@ -132,20 +158,45 @@ public partial class Ambience : Node
         _tCrickets = warmNight * (biome is Biome.Meadow or Biome.Forest ? 1f : 0.3f) / (1f + height / 20f);
     }
 
-    private void UpdateTargets()
+    private void UpdateTargets(float dt)
     {
         var wx = Weather.Current;
         var cam = GetViewport()?.GetCamera3D();
         float alt = cam != null ? Mathf.Max(0f, cam.GlobalPosition.Y - 20f) : 0f;
         if (wx != null)
         {
-            // Vinden høres mer høyt oppe
-            _tWind = Mathf.Clamp(0.08f + wx.Wind * 0.75f, 0f, 1f) * (1f + Mathf.Min(alt / 150f, 0.6f));
-            _windCut = 250f + wx.Wind * 900f;
+            // Vind: lett (gress) eller middels (skog) i vanlig vær, sterkt lag i storm, åpent lag i fjellet.
+            // Vinden høres mer høyt oppe.
+            float w = wx.Wind;
+            float strong = Biomes.SmoothStep(0.5f, 0.9f, w);
+            float level = (0.3f + 0.7f * Mathf.Clamp(w * 1.3f, 0f, 1f)) * (1f + Mathf.Min(alt / 200f, 0.4f));
+            float ground = (1f - _exposed) * (1f - strong);
+            _windTarget[0] = level * ground * (1f - _forest);
+            _windTarget[1] = level * ground * _forest;
+            _windTarget[2] = level * strong * (1f - _exposed * 0.5f);
+            _windTarget[3] = level * _exposed * (0.5f + 0.5f * w);
             _tRain = wx.PrecipIsSnow ? 0f : wx.Precip;
             // Lyn → torden etter en stund (lyden bruker tid)
             if (wx.Flash > 0.95f && _lastFlash < 0.95f) _thunderDelay = 0.6f + (float)_rng.NextDouble() * 2.5f;
             _lastFlash = wx.Flash;
+        }
+    }
+
+    /// <summary>Glir vindlagene mot målnivåene, med langsomme kast (nivå og en anelse tonehøyde).</summary>
+    private void UpdateWind(float dt)
+    {
+        _gustT += dt;
+        float k = 1f - Mathf.Exp(-dt / 1.5f);
+        for (int i = 0; i < _wind.Length; i++)
+        {
+            var p = _wind[i];
+            if (p == null) continue;
+            _windGain[i] += (_windTarget[i] - _windGain[i]) * k;
+            // Hvert lag har sine egne, uregelmessige kast (to langsomme sinuser)
+            float gust = 0.8f + 0.2f * Mathf.Sin(_gustT * (0.13f + i * 0.031f) + i * 1.7f) * Mathf.Sin(_gustT * 0.047f + i);
+            float g = _windGain[i] * gust;
+            p.VolumeDb = g > 0.003f ? WindDb + Mathf.LinearToDb(g) : -80f;
+            p.PitchScale = 0.97f + 0.06f * gust;
         }
     }
 
@@ -182,7 +233,6 @@ public partial class Ambience : Node
         for (int i = 0; i < frames; i++)
         {
             _time += dt;
-            _gWind += (_tWind - _gWind) * k;
             _gRain += (_tRain - _gRain) * k;
             _gRiver += (_tRiver - _gRiver) * k;
             _gFalls += (_tFalls - _gFalls) * k;
@@ -190,20 +240,6 @@ public partial class Ambience : Node
             _gPanWater += (_panWater - _gPanWater) * k;
             _gPanSurf += (_panSurf - _gPanSurf) * k;
             float l = 0f, r = 0f;
-
-            // Vind: brunstøy, båndpass som sveiper med kastene
-            float wn = White();
-            _brownW = Mathf.Clamp(_brownW + wn * 0.02f, -1f, 1f) * 0.998f;
-            float gust = 0.55f + 0.45f * Mathf.Sin((float)_time * 0.23f) * Mathf.Sin((float)_time * 0.071f + 1.3f);
-            float cut = _windCut * (0.6f + gust * 0.8f);
-            float f = 2f * Mathf.Sin(Mathf.Pi * Mathf.Min(cut, 4000f) / Rate);
-            // Tilstandsvariabelfilter (båndpass)
-            _bpW1 += f * _bpW2;
-            float hp = wn - _bpW1 - 0.35f * _bpW2;
-            _bpW2 += f * hp;
-            float wind = (_bpW2 * 0.35f + _brownW * 0.8f) * _gWind * (0.4f + gust * 0.8f);
-            l += wind * (0.9f + 0.1f * Mathf.Sin((float)_time * 0.3f));
-            r += wind * (0.9f + 0.1f * Mathf.Cos((float)_time * 0.27f));
 
             // Regn: høypassert hvit støy
             float rn = White();

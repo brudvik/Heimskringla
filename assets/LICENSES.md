@@ -37,3 +37,11 @@ Modeller fra https://polyhaven.com, lisens CC0 1.0 (ingen kreditering påkrevd):
 - boulder_01 - https://polyhaven.com/a/boulder_01
 - rock_07 - https://polyhaven.com/a/rock_07
 - rock_09 - https://polyhaven.com/a/rock_09
+
+## assets/audio/wind/ - Freesound (CC0 1.0)
+
+Vindopptak fra https://freesound.org, lisens CC0 1.0 (ingen kreditering påkrevd), klippet til løkker av scripts/fetch_wind_sounds.py:
+- wind_grass.ogg - "Wind is blowing in the grass of a patagonian plain. Wind is blowing in the trees in background. (Tierra del fuego, Argentina). " av felix.blume - https://freesound.org/s/139337/
+- wind_forest.ogg - "windy winter day, wind in trees, from distance.wav" av lwdickens - https://freesound.org/s/259968/
+- wind_strong.ogg - "WINDVege_Macclesfield Forest, Morning, Medium Wind, Trees, Recording 4_JW Audio" av JW_Audio - https://freesound.org/s/819351/
+- wind_open.ogg - "High Mountain.wav" av Proxima4 - https://freesound.org/s/104316/
