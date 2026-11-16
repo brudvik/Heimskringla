@@ -20,6 +20,7 @@ public partial class Hud : CanvasLayer
 
     private Label _prompt, _debug, _loading, _help, _targetName;
     private ColorRect _loadingShade;
+    private TextureRect _loadingBg;
     private TextureRect _logo;
     private VBoxContainer _toasts, _pickups;
     private Control _crosshair, _targetBox;
@@ -163,8 +164,21 @@ public partial class Hud : CanvasLayer
         AddChild(helpPanel);
         _help = MakeHelpToggle(helpPanel);
 
-        // Lasteskjerm: mørk tone over bildet og logoen over statusteksten
-        _loadingShade = new ColorRect { Color = new Color(0.02f, 0.02f, 0.03f, 0.55f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        // Lasteskjerm: bakgrunnsbilde, mørk tone (mest bak teksten) og logoen over statusteksten
+        const string bgPath = "res://assets/logo/heimskringla-bg.png";
+        if (ResourceLoader.Exists(bgPath))
+        {
+            _loadingBg = new TextureRect
+            {
+                Texture = GD.Load<Texture2D>(bgPath),
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+            };
+            _loadingBg.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            AddChild(_loadingBg);
+        }
+        _loadingShade = new ColorRect { Color = new Color(0.02f, 0.02f, 0.03f, _loadingBg != null ? 0.3f : 0.55f), MouseFilter = Control.MouseFilterEnum.Ignore };
         _loadingShade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_loadingShade);
         const string logoPath = "res://assets/logo/heimskringla-logo.png";
@@ -313,6 +327,9 @@ public partial class Hud : CanvasLayer
         _loading.Text = text ?? "";
         _loading.Visible = text != null;
         _loadingShade.Visible = text != null;
+        if (_loadingBg != null) _loadingBg.Visible = text != null;
+        if (_hotbar != null) _hotbar.Visible = text == null;
+        if (_helpPanel != null) _helpPanel.Visible = text == null;
         if (_logo != null) _logo.Visible = text != null;
         _crosshair.Visible = text == null;
         _compass.Visible = text == null;

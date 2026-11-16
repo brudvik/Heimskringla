@@ -125,6 +125,7 @@ public partial class Main : Node3D
         Game.Jobs = new JobQueue(Math.Max(2, System.Environment.ProcessorCount - 2));
 
         Game.TerrainMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/terrain.gdshader") };
+        TerrainTextures.Apply(Game.TerrainMaterial);
         var waterShader = GD.Load<Shader>("res://shaders/water.gdshader");
         Game.WaterMaterial = new ShaderMaterial { Shader = waterShader };
         Game.WaterMaterial.SetShaderParameter("wave_strength", 0.5f);

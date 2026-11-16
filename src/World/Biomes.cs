@@ -1,3 +1,4 @@
+using System;
 using Godot;
 
 namespace Heimskringla.World;
@@ -68,6 +69,46 @@ public static class Biomes
     }
 
     /// <summary>Kontinuerlig bakkefarge (sRGB) som blander sonene mykt.</summary>
+    // Teksturlag i terrengshaderen (samme rekkefølge som scripts/fetch_terrain_textures.py)
+    public const int LGrass = 0, LForest = 1, LPine = 2, LHeath = 3, LRock = 4, LScree = 5, LSand = 6, LSnow = 7, Layers = 8;
+
+    private static void Toward(Span<float> w, int layer, float t)
+    {
+        if (t <= 0f) return;
+        t = Math.Min(t, 1f);
+        for (int i = 0; i < w.Length; i++) w[i] *= 1f - t;
+        w[layer] += t;
+    }
+
+    /// <summary>
+    /// Vekter for de 8 teksturlagene (summerer til 1). Speiler GroundColor steg for steg, så
+    /// teksturene nær kameraet stemmer med fargene på avstand.
+    /// </summary>
+    public static void GroundWeights(float h, float temp, float moist, float ny, float rock, Span<float> w)
+    {
+        w.Clear();
+        if (h < 0f)
+        {
+            w[LScree] = 1f;
+            Toward(w, LSand, SmoothStep(-6f, 0f, h));
+            return;
+        }
+        float forest = SmoothStep(0.36f, 0.48f, moist);
+        w[LGrass] = 1f - forest;
+        w[LForest] = forest;
+        Toward(w, LPine, SmoothStep(0.58f, 0.46f, temp) * forest);
+        Toward(w, LHeath, SmoothStep(0.62f, 0.72f, moist) * SmoothStep(32f, 18f, h));
+        Toward(w, LHeath, SmoothStep(0.34f, 0.26f, temp));
+        Toward(w, LRock, SmoothStep(105f, 150f, h) * 0.85f);
+        Toward(w, LSand, SmoothStep(3.6f, 1.6f, h) * SmoothStep(0.62f, 0.8f, ny));
+        if (rock < 0f) rock = SmoothStep(30f, 80f, h);
+        Toward(w, LHeath, SmoothStep(0.86f, 0.7f, ny) * (1f - rock) * 0.6f);
+        Toward(w, LRock, SmoothStep(0.82f, 0.62f, ny) * rock + SmoothStep(0.6f, 0.45f, ny) * (1f - rock));
+        Toward(w, LScree, rock * SmoothStep(0.9f, 0.8f, ny) * SmoothStep(0.62f, 0.75f, ny) * 0.5f);
+        float snow = Math.Max(SmoothStep(0.16f, 0.09f, temp), SmoothStep(225f, 260f, h));
+        Toward(w, LSnow, snow * SmoothStep(0.50f, 0.72f, ny));
+    }
+
     /// <param name="rock">bergmaske 0..1 (WorldGenerator.GetRock); -1 = ukjent (bruk høyden)</param>
     public static Color GroundColor(float h, float temp, float moist, float ny, float rock = -1f)
     {

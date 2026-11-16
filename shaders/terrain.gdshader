@@ -14,6 +14,18 @@ global uniform float wetness;        // 0..1, regn
 global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
 
+// Teksturlag (ambientCG, se scripts/fetch_terrain_textures.py). Skive i = lag i:
+// 0 eng, 1 lauvskogbunn, 2 barskogbunn/sti, 3 lynghei/myr/jord, 4 berg, 5 ur/grus, 6 sand, 7 snø.
+// albedo_arr: rgb = farge, a = høyde.  nrao_arr: rg = normal (OpenGL), b = ruhet, a = AO.
+uniform sampler2DArray albedo_arr : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2DArray nrao_arr : filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec3 layer_mean[8];          // snittfarge per lag (lineær) - teksturen brukes som detalj rundt sonefargen
+uniform float tex_near = 140.0;      // teksturene tones ut mellom disse avstandene
+uniform float tex_far = 220.0;
+const float TILE[8] = { 2.5, 3.0, 3.0, 3.5, 6.0, 2.5, 4.0, 4.0 };   // meter per repetisjon
+
+varying vec4 lw0;   // lagvekter 0-3 (CUSTOM0)
+varying vec4 lw1;   // lagvekter 4-7 (CUSTOM1)
 varying vec3 world_pos;
 varying vec3 world_normal;
 
@@ -115,7 +127,31 @@ float tri_cracks(vec3 p, vec3 w, float s) {
 	return cracks2(p.zy * s) * w.x + cracks2(p.xz * s) * w.y + cracks2(p.xy * s + 17.0) * w.z;
 }
 
+// Ett teksturlag: plant (xz) eller triplanart. Gir farge+høyde, normalforskyvning i verdensrom og ruhet/AO.
+void layer_sample(int i, vec3 p, vec3 tw, bool tri, vec2 warp, out vec4 a, out vec3 off, out vec2 ra) {
+	float s = 1.0 / TILE[i];
+	float li = float(i);
+	if (!tri) {
+		vec2 uv = p.xz * s + warp;
+		a = texture(albedo_arr, vec3(uv, li));
+		vec4 m = texture(nrao_arr, vec3(uv, li));
+		vec2 nt = m.xy * 2.0 - 1.0;
+		off = vec3(nt.x, 0.0, -nt.y);
+		ra = m.zw;
+	} else {
+		vec2 ux = p.zy * s + warp, uy = p.xz * s + warp, uz = p.xy * s + warp;
+		vec4 ax = texture(albedo_arr, vec3(ux, li)), ay = texture(albedo_arr, vec3(uy, li)), az = texture(albedo_arr, vec3(uz, li));
+		vec4 mx = texture(nrao_arr, vec3(ux, li)), my = texture(nrao_arr, vec3(uy, li)), mz = texture(nrao_arr, vec3(uz, li));
+		a = ax * tw.x + ay * tw.y + az * tw.z;
+		vec2 nx = mx.xy * 2.0 - 1.0, ny = my.xy * 2.0 - 1.0, nz = mz.xy * 2.0 - 1.0;
+		off = vec3(0.0, nx.y, nx.x) * tw.x + vec3(ny.x, 0.0, -ny.y) * tw.y + vec3(nz.x, nz.y, 0.0) * tw.z;
+		ra = mx.zw * tw.x + my.zw * tw.y + mz.zw * tw.z;
+	}
+}
+
 void vertex() {
+	lw0 = CUSTOM0;
+	lw1 = CUSTOM1;
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
@@ -140,7 +176,8 @@ void fragment() {
 	vec3 lush = base * vec3(0.82, 0.95, 0.80);
 	col = mix(col, dry, smoothstep(0.55, 0.85, big) * 0.55 * (1.0 - steep));
 	col = mix(col, lush, smoothstep(0.45, 0.15, mid) * 0.45 * (1.0 - steep));
-	col *= mix(1.0, 0.82 + fine * 0.36, near);
+	float tf = 1.0 - smoothstep(tex_near, tex_far, dist);   // hvor mye ekte tekstur (nært)
+	col *= mix(1.0, 0.82 + fine * 0.36, near * (1.0 - tf * 0.7));
 
 	// --- Fjell: fargevariasjon (varme/kalde flekker, lav) og svake, uregelmessige steinlag
 	float rv1 = tri_vnoise(world_pos, tw, 0.008);
@@ -162,13 +199,51 @@ void fragment() {
 	// Sprekker og kanter i berget (bare nært)
 	if (near > 0.01 && steep > 0.01) {
 		float cr = tri_cracks(world_pos, tw, 0.11) * 0.7 + tri_cracks(world_pos, tw, 0.37) * 0.3;
-		rock_col *= 1.0 - cr * 0.45 * near;
+		rock_col *= 1.0 - cr * 0.45 * near * (1.0 - tf * 0.8);
 		// Lyse kanter rett ved sprekkene (slitt stein)
 		rock_col *= 1.0 + tri_vnoise(world_pos, tw, 1.3) * 0.12 * near;
 	}
 	float sat = max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b));
 	float grey = smoothstep(0.06, 0.02, sat) * smoothstep(0.75, 0.5, base.g);   // stein (ikke snø)
 	col = mix(col, rock_col, max(steep, grey));
+
+	// --- Ekte teksturer nært: høydeblanding mellom lagene, brukt som detalj rundt sonefargen
+	vec3 tex_off = vec3(0.0);
+	float tex_rough = 0.85, tex_ao = 1.0;
+	vec2 warp = vec2(vnoise(world_pos.xz * 0.05), vnoise(world_pos.xz * 0.05 + 71.0)) * 0.35;
+	if (tf > 0.001) {
+		float wts[8] = { lw0.x, lw0.y, lw0.z, lw0.w, lw1.x, lw1.y, lw1.z, lw1.w };
+		bool tri = n.y < 0.75;
+		vec4 sa[8];
+		vec3 so[8];
+		vec2 sr[8];
+		float sc[8];
+		float best = -1.0;
+		for (int i = 0; i < 8; i++) {
+			sc[i] = -1.0;
+			if (wts[i] > 0.03) {
+				layer_sample(i, world_pos, tw, tri, warp, sa[i], so[i], sr[i]);
+				sc[i] = wts[i] + sa[i].a * 0.6;
+				best = max(best, sc[i]);
+			}
+		}
+		vec3 tc = vec3(0.0), tm = vec3(0.0), to = vec3(0.0);
+		vec2 tr = vec2(0.0);
+		float tot = 0.0;
+		for (int i = 0; i < 8; i++) {
+			if (sc[i] < 0.0) continue;
+			float f = max(sc[i] - best + 0.25, 0.0);
+			tc += sa[i].rgb * f; tm += layer_mean[i] * f; to += so[i] * f; tr += sr[i] * f; tot += f;
+		}
+		if (tot > 0.0) {
+			tc /= tot; tm /= tot; to /= tot; tr /= tot;
+			vec3 detail = clamp(tc / max(tm, vec3(0.004)), vec3(0.25), vec3(3.0));
+			col *= mix(vec3(1.0), detail, tf);
+			tex_off = to * tf;
+			tex_rough = tr.x;
+			tex_ao = mix(1.0, tr.y, tf);
+		}
+	}
 
 	// --- Årstidssnø (vinter / snøvær)
 	float temp = texture(world_map, (world_pos.xz - world_rect.xy) * world_rect.zw).r;
@@ -180,7 +255,14 @@ void fragment() {
 	float alt = smoothstep(135.0, 185.0, world_pos.y + (vnoise(world_pos.xz * 0.02) - 0.5) * 40.0);
 	float gully = alt * concave * smoothstep(0.35, 0.55, n.y) * smoothstep(0.55, 0.35, temp + snow_line * 0.3 - 0.1);
 	snow = max(snow, smoothstep(0.25, 0.55, gully + (fine - 0.5) * 0.2));
-	col = mix(col, vec3(0.80, 0.83, 0.90) * (0.92 + fine * 0.12), snow);
+	vec3 snow_col = vec3(0.80, 0.83, 0.90) * (0.92 + fine * 0.12);
+	if (snow > 0.01 && tf > 0.001) {
+		vec4 sa7; vec3 so7; vec2 sr7;
+		layer_sample(7, world_pos, tw, false, warp, sa7, so7, sr7);
+		snow_col *= mix(vec3(1.0), clamp(sa7.rgb / max(layer_mean[7], vec3(0.004)), vec3(0.5), vec3(1.5)), tf);
+		tex_off = mix(tex_off, so7 * tf, snow);
+	}
+	col = mix(col, snow_col, snow);
 
 	// --- Våt bakke (mørkere og blankere)
 	float wet = wetness * (1.0 - snow);
@@ -203,14 +285,15 @@ void fragment() {
 			w /= (w.x + w.z + 0.0001);
 			pert += (vec3(0.0, gx.y, gx.x) * w.x + vec3(gz.x, gz.y, 0.0) * w.z) * steep;
 		}
-		bn = normalize(n - pert * near * (1.0 - snow * 0.7));
+		bn = normalize(n - pert * near * (1.0 - snow * 0.7) * (1.0 - tf * 0.85));
 	}
+	bn = normalize(bn + tex_off * 0.9);
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
 
 	ALBEDO = col;
-	AO = clamp(ao, 0.0, 1.0);
+	AO = clamp(ao, 0.0, 1.0) * tex_ao;
 	AO_LIGHT_AFFECT = 0.25;
-	ROUGHNESS = mix(mix(0.95, 0.8, steep), 0.3, wet * 0.85);
+	ROUGHNESS = mix(mix(mix(0.95, 0.8, steep), tex_rough, tf), 0.3, wet * 0.85);
 	if (snow > 0.0) ROUGHNESS = mix(ROUGHNESS, 0.7, snow);
 	SPECULAR = 0.2 + wet * 0.3;
 }

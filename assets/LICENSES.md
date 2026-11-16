@@ -12,3 +12,15 @@ Alle pakker er CC0 1.0 (public domain). Kreditering er ikke påkrevd, men gis gj
 | nature_lowpoly/ | Ultimate Nature Pack (Jun 2019) | Quaternius |
 
 Ubrukte pakker (f.eks. Kenney Nature Kit) ligger utpakket i D:/3dmodels/extracted.
+
+## assets/terrain/ - ambientCG (CC0 1.0)
+
+Terrengteksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering påkrevd):
+- Grass004 (eng) - https://ambientcg.com/view?id=Grass004
+- Ground037 (lauvskogbunn) - https://ambientcg.com/view?id=Ground037
+- Ground071 (barskogbunn) - https://ambientcg.com/view?id=Ground071
+- Ground068 (lynghei/myr/jord) - https://ambientcg.com/view?id=Ground068
+- Rock030 (berg) - https://ambientcg.com/view?id=Rock030
+- Gravel041 (ur/grus) - https://ambientcg.com/view?id=Gravel041
+- Ground080 (sand) - https://ambientcg.com/view?id=Ground080
+- Snow010A (snø) - https://ambientcg.com/view?id=Snow010A

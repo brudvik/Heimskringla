@@ -9,6 +9,7 @@ public sealed class ChunkMeshData
     public Vector3[] Vertices;
     public Vector3[] Normals;
     public Color[] Colors;
+    public byte[] Weights0, Weights1;   // teksturlag 0-3 og 4-7 (RGBA8), se Biomes.GroundWeights
     public int[] Indices;
     public Vector3[] WaterVertices;
     public int[] WaterIndices;
@@ -35,6 +36,9 @@ public static class TerrainMeshBuilder
         var verts = new Vector3[n * n + skirtCount];
         var normals = new Vector3[verts.Length];
         var colors = new Color[verts.Length];
+        var wt0 = new byte[verts.Length * 4];
+        var wt1 = new byte[verts.Length * 4];
+        System.Span<float> lw = stackalloc float[Biomes.Layers];
 
         for (int j = 0; j < n; j++)
         for (int i = 0; i < n; i++)
@@ -45,14 +49,26 @@ public static class TerrainMeshBuilder
             var nrm = new Vector3(hl - hr, 2f * step, hd - hu).Normalized();
             float x = x0 + i * step, z = z0 + j * step;
             // Normal for fargeformål beregnes fra 1 m-skala nært, ellers fra mesh-oppløsningen
-            Color c = Biomes.GroundColor(hc, w.GetTemp(x, z), w.GetMoist(x, z), nrm.Y, w.GetRock(x, z));
+            float tmp = w.GetTemp(x, z), mst = w.GetMoist(x, z), rk = w.GetRock(x, z);
+            Color c = Biomes.GroundColor(hc, tmp, mst, nrm.Y, rk);
+            Biomes.GroundWeights(hc, tmp, mst, nrm.Y, rk, lw);
             float cn = 1f + w.ColorNoise(x, z) * 0.07f;
             if (step <= 2f)
             {
                 float trail = w.TrailMask(x, z, hc, nrm.Y);
-                if (trail > 0f) c = c.Lerp(Biomes.Trail, trail * 0.85f);
+                if (trail > 0f)
+                {
+                    c = c.Lerp(Biomes.Trail, trail * 0.85f);
+                    for (int q = 0; q < Biomes.Layers; q++) lw[q] *= 1f - trail * 0.85f;
+                    lw[Biomes.LPine] += trail * 0.85f;
+                }
             }
             int v = j * n + i;
+            for (int q = 0; q < 4; q++)
+            {
+                wt0[v * 4 + q] = (byte)Mathf.Clamp(lw[q] * 255f + 0.5f, 0f, 255f);
+                wt1[v * 4 + q] = (byte)Mathf.Clamp(lw[q + 4] * 255f + 0.5f, 0f, 255f);
+            }
             verts[v] = new Vector3(i * step, hc, j * step);
             normals[v] = nrm;
 
@@ -95,6 +111,7 @@ public static class TerrainMeshBuilder
                 verts[sv] = verts[src] - new Vector3(0, skirt, 0);
                 normals[sv] = normals[src];
                 colors[sv] = colors[src];
+                for (int q = 0; q < 4; q++) { wt0[sv * 4 + q] = wt0[src * 4 + q]; wt1[sv * 4 + q] = wt1[src * 4 + q]; }
                 sv++;
             }
             for (int k = 0; k < n - 1; k++)
@@ -108,7 +125,7 @@ public static class TerrainMeshBuilder
             }
         }
 
-        var data = new ChunkMeshData { Vertices = verts, Normals = normals, Colors = colors, Indices = idx.ToArray() };
+        var data = new ChunkMeshData { Vertices = verts, Normals = normals, Colors = colors, Indices = idx.ToArray(), Weights0 = wt0, Weights1 = wt1 };
         BuildWater(w, x0, z0, step, n, h, nb, data);
         return data;
     }

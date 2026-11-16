@@ -168,8 +168,12 @@ public partial class TerrainManager : Node3D
         arrays[(int)Mesh.ArrayType.Normal] = data.Normals;
         arrays[(int)Mesh.ArrayType.Color] = data.Colors;
         arrays[(int)Mesh.ArrayType.Index] = data.Indices;
+        arrays[(int)Mesh.ArrayType.Custom0] = data.Weights0;
+        arrays[(int)Mesh.ArrayType.Custom1] = data.Weights1;
+        var fmt = (Mesh.ArrayFormat)(((long)Mesh.ArrayCustomFormat.Rgba8Unorm << (int)Mesh.ArrayFormat.FormatCustom0Shift)
+                                   | ((long)Mesh.ArrayCustomFormat.Rgba8Unorm << (int)Mesh.ArrayFormat.FormatCustom1Shift));
         var mesh = new ArrayMesh();
-        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays, null, null, fmt);
         mesh.SurfaceSetMaterial(0, Game.TerrainMaterial);
         chunk.Mesh = new MeshInstance3D { Mesh = mesh, Position = pos, Visible = false };
         AddChild(chunk.Mesh);
