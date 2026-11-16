@@ -25,7 +25,7 @@ public partial class Ambience : Node
 
     // Vindlag (opptak): gress/lett, skog/middels, sterk, åpent fjell
     private static readonly string[] WindFiles = { "wind_grass", "wind_forest", "wind_strong", "wind_open" };
-    private const float WindDb = -9f;          // nivå for et lag på full styrke
+    private const float WindDb = -14f;         // nivå for et lag på full styrke
     private readonly AudioStreamPlayer[] _wind = new AudioStreamPlayer[4];
     private readonly float[] _windGain = new float[4];
     private readonly float[] _windTarget = new float[4];
