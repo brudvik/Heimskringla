@@ -151,9 +151,19 @@ void layer_sample(int i, vec3 p, vec3 tw, bool tri, vec2 warp, out vec4 a, out v
 		off = vec3(nt.x, 0.0, -nt.y);
 		ra = mix(m1.zw, m2.zw, b);
 	} else {
+		// Mot repetisjon på stup: en grovere, forskjøvet prøve blandes inn i flekker (to prøver bare i overgangen)
+		float bn = vnoise(p.xz * 0.06 + p.y * 0.045 + li * 7.0) * 0.7 + vnoise(vec2(p.x + p.z, p.y) * 0.21) * 0.3;
+		float b = smoothstep(0.38, 0.62, bn);
+		float s2 = b > 0.0 ? 0.53 : 1.0;
+		vec2 o2 = b > 0.0 ? vec2(0.31, 0.77) : vec2(0.0);
 		vec2 ux = p.zy * s + warp, uy = p.xz * s + warp, uz = p.xy * s + warp;
 		vec4 ax = texture(albedo_arr, vec3(ux, li)), ay = texture(albedo_arr, vec3(uy, li)), az = texture(albedo_arr, vec3(uz, li));
 		vec4 mx = texture(nrao_arr, vec3(ux, li)), my = texture(nrao_arr, vec3(uy, li)), mz = texture(nrao_arr, vec3(uz, li));
+		if (b > 0.0) {
+			vec2 vx = p.zy * s * s2 + o2, vy = p.xz * s * s2 + o2, vz = p.xy * s * s2 + o2;
+			ax = mix(ax, texture(albedo_arr, vec3(vx, li)), b); ay = mix(ay, texture(albedo_arr, vec3(vy, li)), b); az = mix(az, texture(albedo_arr, vec3(vz, li)), b);
+			mx = mix(mx, texture(nrao_arr, vec3(vx, li)), b); my = mix(my, texture(nrao_arr, vec3(vy, li)), b); mz = mix(mz, texture(nrao_arr, vec3(vz, li)), b);
+		}
 		a = ax * tw.x + ay * tw.y + az * tw.z;
 		vec2 nx = mx.xy * 2.0 - 1.0, ny = my.xy * 2.0 - 1.0, nz = mz.xy * 2.0 - 1.0;
 		off = vec3(0.0, nx.y, nx.x) * tw.x + vec3(ny.x, 0.0, -ny.y) * tw.y + vec3(nz.x, nz.y, 0.0) * tw.z;
@@ -196,9 +206,19 @@ void fragment() {
 	float rv2 = steep > 0.01 ? tri_fbm(world_pos, tw, 0.045) : fbm(world_pos.xz * 0.045);
 	vec3 warm = vec3(1.10, 1.00, 0.88), cool = vec3(0.88, 0.94, 1.04);
 	vec3 rock_tint = mix(cool, warm, rv1) * (0.80 + rv2 * 0.40);
+	// Bergart per region: rosa/varm granitt, mørk gabbro, lys grå gneis (store, myke overganger)
+	float geo1 = vnoise(world_pos.xz * 0.0007 + 3.0), geo2 = vnoise(world_pos.xz * 0.0011 - 11.0);
+	vec3 granite = vec3(1.18, 1.0, 0.9), gabbro = vec3(0.72, 0.74, 0.76), gneiss = vec3(1.08, 1.1, 1.12);
+	vec3 geo = mix(mix(gneiss, granite, smoothstep(0.4, 0.7, geo1)), gabbro, smoothstep(0.55, 0.8, geo2));
+	rock_tint *= geo;
+	// Uregelmessige bergbånd: tykkelse og avstand varierer oppover og rundt fjellet (ingen fast periode)
 	float strata_n = fbm(world_pos.xz * 0.012) * 14.0 + fbm(world_pos.xz * 0.08) * 3.0;
-	float strata = sin(world_pos.y * 0.33 + strata_n);
-	float band = smoothstep(0.75, 1.0, strata) * fbm(world_pos.xz * 0.02 + 5.0);
+	float sy = world_pos.y * 0.11 + strata_n * 0.35;
+	float band = smoothstep(0.62, 0.85, vnoise(vec2(sy, dot(world_pos.xz, vec2(0.004, 0.003)))))
+	           * smoothstep(0.35, 0.7, vnoise(world_pos.xz * 0.01 + world_pos.y * 0.008));
+	// Store fargelag i fjellet som skifter med høyden (hver fjellside sin egen sekvens)
+	float layer = vnoise(vec2(world_pos.y * 0.018 + vnoise(world_pos.xz * 0.003) * 3.0, world_pos.x * 0.0013 + world_pos.z * 0.0009));
+	rock_tint *= mix(vec3(0.86, 0.88, 0.9), vec3(1.12, 1.06, 0.96), layer);
 	vec3 rock_col = col * rock_tint * (1.0 - band * 0.25);
 	// Store toneflekker over hele fjellsider (lyse og mørke partier, ikke én jevn grå vegg)
 	float macro = tri_vnoise(world_pos, tw, 0.0025) * 0.6 + tri_vnoise(world_pos, tw, 0.006) * 0.4;
@@ -206,6 +226,9 @@ void fragment() {
 	// Mørke vannsig nedover stupene (uregelmessige, ikke et kamstriper-mønster)
 	float seep = vnoise(vec2(dot(world_pos.xz, vec2(0.7, 0.7)) * 0.09, world_pos.y * 0.006));
 	rock_col *= 1.0 - smoothstep(0.7, 0.9, seep) * 0.25 * smoothstep(0.75, 0.95, steep);
+	// Gul/oransje kartlav i flekker på berg som vender mot sola (sør, +Z) og ikke er for bratt
+	float lichen = smoothstep(0.62, 0.78, tri_vnoise(world_pos, tw, 0.35)) * smoothstep(0.2, 0.8, n.z * 0.5 + 0.5) * smoothstep(0.2, 0.6, n.y + 0.3) * near;
+	rock_col = mix(rock_col, rock_col * vec3(1.35, 1.1, 0.55), lichen * 0.45);
 	// Lav/mose i forsenkninger på fjellet
 	rock_col = mix(rock_col, rock_col * vec3(0.85, 0.95, 0.70), smoothstep(0.55, 0.8, rv2) * 0.5);
 	// Sprekker og kanter i berget (bare nært)

@@ -116,6 +116,11 @@ public static class PropLibrary
         var greenLeaves = ModelLibrary.LoadMesh(Nature + "CommonTree_1.gltf")?.SurfaceGetMaterial(1);
         if (greenLeaves != null)
             foreach (var b in bush) b.Mesh = ModelLibrary.WithMaterial(b.Mesh, 0, greenLeaves);
+        // Variasjon: busk med blomster (rosa/hvite, vår/sommer-preg) og en lav, bred variant
+        var flowerBush = ModelLibrary.Variant(Nature + "Bush_Common_Flowers.gltf", 0.8f);
+        if (flowerBush != null) bush.Add(flowerBush);
+        if (bush.Count > 0)
+            bush.Add(new ModelVariant { Mesh = bush[0].Mesh, BaseScale = 1.15f });
         Def(PropKind.Bush, "Busk", PropRole.Decor, bush, proc.Bush, d =>
         {
             d.MaxDistance = 400f; d.MinScale = 0.7f; d.MaxScale = 1.3f; d.Sink = 0.1f;

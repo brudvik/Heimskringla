@@ -149,6 +149,28 @@ public partial class CharacterModel : PlayerVisual
 
     private static Shader ToolShader;
 
+    /// <summary>Tre/stål-materialet for en Kenney-verktøyflate (null hvis den ikke har palett-tekstur).</summary>
+    public static Material ToolMaterial(Material src)
+    {
+        if (src is not BaseMaterial3D bm || bm.AlbedoTexture == null) return null;
+        var mat = new ShaderMaterial { Shader = ToolShader ??= GD.Load<Shader>("res://shaders/tool.gdshader") };
+        mat.SetShaderParameter("palette", bm.AlbedoTexture);
+        return mat;
+    }
+
+    /// <summary>Kopi av en verktøymesh med tre/stål-materialene (til ikoner).</summary>
+    public static Mesh ToolMesh(Mesh mesh)
+    {
+        if (mesh is not ArrayMesh) return mesh;
+        var copy = (ArrayMesh)mesh.Duplicate();
+        for (int s = 0; s < copy.GetSurfaceCount(); s++)
+        {
+            var m = ToolMaterial(copy.SurfaceGetMaterial(s));
+            if (m != null) copy.SurfaceSetMaterial(s, m);
+        }
+        return copy;
+    }
+
     private static Node3D LoadTool(string path, Node3D parent)
     {
         if (!ResourceLoader.Exists(path)) return new Node3D();
@@ -161,10 +183,8 @@ public partial class CharacterModel : PlayerVisual
             var mi = (MeshInstance3D)n;
             for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
             {
-                if (mi.Mesh.SurfaceGetMaterial(s) is not BaseMaterial3D bm || bm.AlbedoTexture == null) continue;
-                var mat = new ShaderMaterial { Shader = ToolShader ??= GD.Load<Shader>("res://shaders/tool.gdshader") };
-                mat.SetShaderParameter("palette", bm.AlbedoTexture);
-                mi.SetSurfaceOverrideMaterial(s, mat);
+                var mat = ToolMaterial(mi.Mesh.SurfaceGetMaterial(s));
+                if (mat != null) mi.SetSurfaceOverrideMaterial(s, mat);
             }
         }
         parent.AddChild(t);

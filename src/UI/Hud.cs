@@ -45,8 +45,8 @@ public partial class Hud : CanvasLayer
         "Grein" => PropLibrary.Defs?[(int)PropKind.Branch].Variants[0].Mesh,
         "Stein" => PropLibrary.Defs?[(int)PropKind.Stone].Variants[0].Mesh,
         "Sopp" => PropLibrary.Defs?[(int)PropKind.Mushroom].Variants[0].Mesh,
-        "Øks" => ModelLibrary.LoadMesh("res://assets/survival/tool-axe.glb"),
-        "Hakke" => ModelLibrary.LoadMesh("res://assets/survival/tool-pickaxe.glb"),
+        "Øks" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-axe.glb")),
+        "Hakke" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-pickaxe.glb")),
         _ => null,
     };
 

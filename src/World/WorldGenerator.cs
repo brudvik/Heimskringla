@@ -49,7 +49,7 @@ public sealed class WorldGenerator
     public int LakeCells;
 
     private readonly FastNoiseLite _warp, _cont, _hill, _mmask, _ridge, _temp, _moist;
-    private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail, _crag, _strata;
+    private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail, _crag, _strata, _style, _plateau;
     public float[] Rock;       // 0..1: hvor mye fjell/berg det er her (styrer steinlag, klipper og farge)
 
     private WorldGenerator(int seed)
@@ -71,6 +71,8 @@ public sealed class WorldGenerator
         _crag = MakeNoise(seed + 13, 1f / 26f, 3);
         _crag.SetFractalType(FastNoiseLite.FractalType.Ridged);
         _strata = MakeNoise(seed + 14, 1f / 300f, 2);
+        _style = MakeNoise(seed + 15, 1f / 2600f, 2);     // fjellstil per region
+        _plateau = MakeNoise(seed + 16, 1f / 900f, 2);
     }
 
     private static FastNoiseLite MakeNoise(int seed, float freq, int octaves)
@@ -339,9 +341,25 @@ public sealed class WorldGenerator
 
         float mm = Biomes.SmoothStep(0.05f, 0.45f, _mmask.GetNoise(wx, wz) * 0.8f + c * 0.6f);
         float rn = (_ridge.GetNoise(wx, wz) + 1f) * 0.5f;
-        // Bred fjellfot (massiv) + skarpe rygger på toppen
-        h += mm * land * 90f;
-        h += MathF.Pow(rn, 2.4f) * 330f * mm * land;
+        // Fjellstil per region: alpine (spisse tinder), gamle (avrundede) eller platåfjell
+        float style = _style.GetNoise(x, z);
+        float alpine = Biomes.SmoothStep(0.05f, 0.4f, style);
+        float rounded = Biomes.SmoothStep(-0.05f, -0.4f, style);
+        float exp = 2.4f + alpine * 0.9f - rounded * 0.9f;
+        float amp = 330f * (1f + alpine * 0.25f - rounded * 0.35f);
+        // Bred fjellfot (massiv) + rygger på toppen
+        float mtn = mm * land * (90f + MathF.Pow(rn, exp) * amp);
+        // Avrundede fjell: glatt ut de skarpeste ryggene
+        if (rounded > 0f) mtn = mtn * (1f - rounded * 0.3f) + mm * land * (rn * rn) * 160f * rounded * 0.3f;
+        // Platåfjell: flate topper med bratte kanter der platåstøyen er høy
+        float pl = Biomes.SmoothStep(0.15f, 0.45f, _plateau.GetNoise(x, z)) * (1f - alpine) * mm;
+        if (pl > 0.01f)
+        {
+            float top = 120f + _plateau.GetNoise(x * 0.3f + 500f, z * 0.3f) * 40f;
+            float capped = mtn > top ? top + (mtn - top) * 0.12f : mtn;
+            mtn = mtn + (capped - mtn) * pl;
+        }
+        h += mtn;
         return h;
     }
 
@@ -637,13 +655,22 @@ public sealed class WorldGenerator
         {
             // Skrå steinlag: hyller (nesten flate) og stup mellom dem. Lagene heller litt (tilt),
             // så de ikke blir perfekte vannrette trinn.
-            const float L = 8f;
-            float tilt = _strata.GetNoise(x, z) * 22f + (x * 0.012f - z * 0.007f);
-            float t = (h + tilt) / L;
+            // Lagtykkelse, styrke og helning varierer fra fjell til fjell
+            float region = _style.GetNoise(x * 3.1f + 900f, z * 3.1f - 400f);
+            float L = 6f + (region * 0.5f + 0.5f) * 9f;
+            float dipX = 0.012f + region * 0.02f, dipZ = -0.007f + _style.GetNoise(x * 2.3f, z * 2.3f) * 0.025f;
+            float tilt = _strata.GetNoise(x, z) * 22f + (x * dipX + z * dipZ);
+            // Ujevn lagtykkelse oppover: høyden forvrenges av støy som avhenger av høyden selv,
+            // så lagene ikke gjentar seg med fast avstand
+            float hw = h + tilt;
+            float t = hw / L + _strata.GetNoise(hw * 3.3f + x * 0.05f, z * 0.05f - hw * 1.7f) * 1.4f;
             float fl = MathF.Floor(t), f = t - fl;
             float riser = Biomes.SmoothStep(0.62f, 0.98f, f);
             float terrace = (fl + 0.2f * f + 0.8f * riser) * L - tilt;
-            h = h + (terrace - h) * rock * 0.65f;
+            float strength = 0.35f + 0.45f * (_strata.GetNoise(x * 0.37f + 1700f, z * 0.37f) * 0.5f + 0.5f);
+            // Partier av fjellsiden uten tydelige lag (massivt berg), andre med kraftige hyller
+            strength *= Biomes.SmoothStep(-0.35f, 0.25f, _strata.GetNoise(x * 0.6f - 300f, h * 9f + z * 0.6f));
+            h = h + (terrace - h) * rock * strength;
             // Knudrete klipper (ryggete støy)
             h += (_crag.GetNoise(x, z) - 0.35f) * 3.2f * rock;
         }
