@@ -182,12 +182,17 @@ public static class PropLibrary
         Def(PropKind.Log, "Tømmerstokk", PropRole.Pickup, null, proc.Log, d => { d.Item = "Tømmer"; });
 
         // ---------- Snødekte varianter (Ultimate Nature Pack, lavpoly) for kalde soner
-        AddCold(PropKind.Spruce, ModelLibrary.Series(LowPoly + "PineTree_Snow_{0}.glb", 1, 5, 2.6f));
-        AddCold(PropKind.Pine, ModelLibrary.Series(LowPoly + "PineTree_Snow_{0}.glb", 2, 4, 3.0f));
-        AddCold(PropKind.Birch, ModelLibrary.Series(LowPoly + "BirchTree_Snow_{0}.glb", 1, 5, 2.0f));
+        // Gran/furu/bjørk bruker de vanlige modellene også i kalde soner; snøen legges på i
+        // foliage-shaderen (lavpoly-snøtrærne var kantete og passet ikke med resten).
         AddCold(PropKind.DeadTree, ModelLibrary.Series(LowPoly + "BirchTree_Dead_{0}.glb", 1, 5, 1.5f));
-        AddCold(PropKind.Bush, ModelLibrary.Series(LowPoly + "Bush_Snow_{0}.glb", 1, 2, 1.0f));
-        AddCold(PropKind.Boulder, ModelLibrary.Series(LowPoly + "Rock_Snow_{0}.glb", 1, 7, 2.6f));
+        
+        var snowRocks = ModelLibrary.Series(LowPoly + "Rock_Snow_{0}.glb", 1, 7, 2.6f);
+        foreach (var v in snowRocks)
+        {
+            // Hele steinen får bergshaderen; snøen legges på i shaderen (kalde soner har alltid snø)
+            v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
+        }
+        AddCold(PropKind.Boulder, snowRocks);
         StumpMesh = ModelLibrary.LoadMesh(LowPoly + "TreeStump.glb");
         StumpSnowMesh = BrightenSnow(ModelLibrary.LoadMesh(LowPoly + "TreeStump_Snow.glb")) ?? StumpMesh;
 
@@ -292,7 +297,9 @@ public static class PropLibrary
         }
         if (src is not BaseMaterial3D bm) return src;
         string n = bm.ResourceName ?? "";
-        bool leafy = !(n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk") || n.Contains("Snow"));
+        // Lavpoly-modellene (Ultimate Nature Pack) kaller stammen "Wood", og bjørkene "White"/"Black"
+        bool barkName = n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk") || n == "White" || n == "Black";
+        bool leafy = !(barkName || n.Contains("Snow"));
         var m = new ShaderMaterial { Shader = FoliageShader ??= GD.Load<Shader>("res://shaders/foliage.gdshader") };
         m.SetShaderParameter("albedo_color", bm.AlbedoColor);
         if (bm.AlbedoTexture != null)
@@ -313,8 +320,7 @@ public static class PropLibrary
         m.SetShaderParameter("flutter", flutter);
         m.SetShaderParameter("leafy", leafy ? 1f : 0f);
         m.SetShaderParameter("deciduous", deciduous && leafy ? 1f : 0f);
-        bool isBark = n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk");
-        m.SetShaderParameter("bark", isBark ? 1f : 0f);
+        m.SetShaderParameter("bark", barkName ? 1f : 0f);
         m.SetShaderParameter("bark_layer", deciduous ? 1f : 0f);
         m.ResourceName = n;
         return m;

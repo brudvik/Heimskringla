@@ -529,27 +529,8 @@ public partial class Main : Node3D
                 break;
             }
             case 24: // ... og sikt inn på nærmeste gran/furu når de nære trærne er forfremmet
-            {
-                TreeNode tree = null; float bd = float.MaxValue;
-                foreach (var nd in _vegetation.GetChildren())
-                    if (nd is TreeNode tn && (tn.Def.Kind == PropKind.Pine || tn.Def.Kind == PropKind.Spruce))
-                    {
-                        float d = tn.GlobalPosition.DistanceTo(_player.GlobalPosition);
-                        if (d < bd) { bd = d; tree = tn; }
-                    }
-                if (tree != null)
-                {
-                    var dir = (_player.GlobalPosition - tree.GlobalPosition) with { Y = 0 };
-                    var at = tree.GlobalPosition + dir.Normalized() * 2.2f;
-                    _player.Teleport(at.X, at.Z);
-                    var to = tree.GlobalPosition - at;
-                    _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z);
-                    _player.CameraYaw += 0.5f;   // figuren til siden, stammen i midten
-                    _player.CameraPitch = 0.05f; _player.CameraDistance = 1.6f;
-                    GD.Print($"[autotest] stamme: {tree.Def.Name}");
-                }
+                AimAtTree(t => t.Def.Kind is PropKind.Pine or PropKind.Spruce);
                 break;
-            }
             case 25: // nærbilde av en steinblokk
             {
                 var rock = Nearest<RockNode>();
@@ -565,10 +546,64 @@ public partial class Main : Node3D
                 }
                 break;
             }
+            case 26: // bjørk (teleporter til den, sikt inn i neste steg)
+                GoNearTree(i => i.Kind == PropKind.Birch && !i.Cold);
+                break;
+            case 27:
+                AimAtTree(t => t.Def.Kind == PropKind.Birch);
+                break;
+            case 28: // tørrfuru
+                GoNearTree(i => i.Kind == PropKind.DeadTree && !i.Cold);
+                break;
+            case 29:
+                AimAtTree(t => t.Def.Kind == PropKind.DeadTree, t => !t.Inst.Cold);
+                break;
+            case 30: // snøtrær i kald sone (flyr dit først, så cellene der lastes)
+            {
+                var p = FindPoint((x, z) => w.GetTemp(x, z) < 0.2f && w.GetHeight(x, z) > 5f && w.GetHeight(x, z) < 150f && w.GetNormal(x, z, 3f).Y > 0.93f);
+                _player.Teleport(p.X, p.Z);
+                _autoT = 3f;   // kortere ventetid, neste steg finner treet
+                break;
+            }
+            case 31:
+                GoNearTree(i => i.Cold && (i.Kind == PropKind.Spruce || i.Kind == PropKind.Pine));
+                break;
+            case 32:
+                AimAtTree(t => t.Def.Kind is PropKind.Spruce or PropKind.Pine, t => t.Inst.Cold);
+                break;
             default:
                 GetTree().Quit();
                 break;
         }
+    }
+
+    /// <summary>Autotest: teleporter like ved nærmeste genererte tre som passer (forfremmes til neste steg).</summary>
+    private void GoNearTree(Func<PropInstance, bool> ok)
+    {
+        var inst = _vegetation.FindNearest(_player.GlobalPosition, ok);
+        if (inst == null) { GD.Print("[autotest] fant ikke treet (instans)"); return; }
+        _player.Teleport(inst.Pos.X + 3f, inst.Pos.Z + 3f);
+    }
+
+    /// <summary>Autotest: still kameraet inn på nærmeste tre som passer (stamme i bildet).</summary>
+    private void AimAtTree(Func<TreeNode, bool> kind, Func<TreeNode, bool> extra = null)
+    {
+        TreeNode tree = null; float bd = float.MaxValue;
+        foreach (var nd in _vegetation.GetChildren())
+            if (nd is TreeNode tn && kind(tn) && (extra == null || extra(tn)))
+            {
+                float d = tn.GlobalPosition.DistanceTo(_player.GlobalPosition);
+                if (d < bd) { bd = d; tree = tn; }
+            }
+        if (tree == null) { GD.Print("[autotest] fant ikke treet"); return; }
+        var dir = (_player.GlobalPosition - tree.GlobalPosition) with { Y = 0 };
+        if (dir.LengthSquared() < 0.01f) dir = Vector3.Back;
+        var at = tree.GlobalPosition + dir.Normalized() * 2.4f;
+        _player.Teleport(at.X, at.Z);
+        var to = tree.GlobalPosition - at;
+        _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z) + 0.5f;   // figuren til siden, stammen i midten
+        _player.CameraPitch = -0.15f; _player.CameraDistance = 1.6f;
+        GD.Print($"[autotest] stamme: {tree.Def.Name}{(tree.Inst.Cold ? " (snø)" : "")}");
     }
 
     /// <summary>Søker i spiral fra startpunktet etter et punkt som oppfyller kravet (autotest).</summary>

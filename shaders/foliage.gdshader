@@ -52,7 +52,8 @@ void vertex() {
 	v_h = VERTEX.y * length(MODEL_MATRIX[1].xyz);
 	vec3 root = MODEL_MATRIX[3].xyz;
 	float temp = texture(world_map, (root.xz - world_rect.xy) * world_rect.zw).r;
-	v_snow = smoothstep(temp - 0.03, temp + 0.03, snow_line);
+	// Årstidssnø, og alltid snø i de kaldeste sonene (samme grense som snøbakken i Biomes)
+	v_snow = smoothstep(temp - 0.03, temp + 0.03, max(snow_line, 0.13));
 	VERTEX += wind_displace(VERTEX, MODEL_MATRIX, TIME, bend, flutter);
 	vec3 r = MODEL_MATRIX[3].xyz;
 	v_hash = fract(sin(dot(r.xz, vec2(12.9898, 78.233))) * 43758.5453);
@@ -91,6 +92,8 @@ void fragment() {
 			vec3 ba = texture(detail_albedo, vec3(ux, bark_layer)).rgb * tw.x + texture(detail_albedo, vec3(uy, bark_layer)).rgb * tw.y + texture(detail_albedo, vec3(uz, bark_layer)).rgb * tw.z;
 			vec4 bx = texture(detail_nrao, vec3(ux, bark_layer)), by = texture(detail_nrao, vec3(uy, bark_layer)), bz = texture(detail_nrao, vec3(uz, bark_layer));
 			vec3 bmean = bark_layer < 0.5 ? vec3(0.1939, 0.135, 0.0823) : vec3(0.2548, 0.1934, 0.0825);
+			// Ensfargede lavpoly-stammer (ofte mettet rødbrune): trekk mot ekte barkfarge
+			if (!use_tex) c.rgb = mix(c.rgb, bmean * 1.2, 0.7);
 			c.rgb *= mix(vec3(1.0), clamp(ba / bmean, vec3(0.3), vec3(2.2)), near * 0.85);
 			vec2 nx = bx.xy * 2.0 - 1.0, ny = by.xy * 2.0 - 1.0, nz = bz.xy * 2.0 - 1.0;
 			vec3 off_o = vec3(0.0, nx.y, nx.x) * tw.x + vec3(ny.x, 0.0, -ny.y) * tw.y + vec3(nz.x, nz.y, 0.0) * tw.z;
@@ -110,7 +113,9 @@ void fragment() {
 	}
 
 	// Snø på oversiden om vinteren
-	float snow = v_snow * smoothstep(0.1, 0.6, wn.y);
+	// Snøklumper på oversiden av greiner og bar (ujevnt, ikke hele treet hvitt)
+	float clump = ihash(obj_pos * 3.0 + v_hash * 5.0);
+	float snow = v_snow * smoothstep(0.05, 0.5, wn.y + (clump - 0.5) * 0.5) * (leafy > 0.5 ? 0.85 : 1.0);
 	c.rgb = mix(c.rgb, vec3(0.82, 0.85, 0.9), snow);
 	c.rgb *= 1.0 - wetness * 0.25 * (1.0 - snow);
 	ALBEDO = c.rgb;

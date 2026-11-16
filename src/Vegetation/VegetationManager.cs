@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using Heimskringla.Core;
@@ -39,6 +40,25 @@ public partial class VegetationManager : Node3D
     private float _cellTimer, _promoteTimer;
 
     public int CellCount => _cells.Count;
+
+    /// <summary>Nærmeste genererte instans (også ikke-forfremmede) som passer (autotest/feilsøking).</summary>
+    public PropInstance FindNearest(Vector3 p, Func<PropInstance, bool> ok)
+    {
+        PropInstance best = null; float bd = float.MaxValue;
+        foreach (var cell in _cells.Values)
+        {
+            if (cell.ByKind == null) continue;
+            foreach (var list in cell.ByKind)
+                if (list != null)
+                    foreach (var inst in list)
+                    {
+                        if (!ok(inst)) continue;
+                        float d = inst.Pos.DistanceSquaredTo(p);
+                        if (d < bd) { bd = d; best = inst; }
+                    }
+        }
+        return best;
+    }
     public int PromotedCount => _promoted.Count;
     public int InstanceCount { get; private set; }
 

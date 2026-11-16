@@ -110,7 +110,7 @@ void fragment() {
 	}
 	// Årstidssnø på toppen av steinene
 	float temp = texture(world_map, (world_pos.xz - world_rect.xy) * world_rect.zw).r;
-	float ssnow = smoothstep(temp - 0.03, temp + 0.03, snow_line) * smoothstep(0.35, 0.7, n.y);
+	float ssnow = smoothstep(temp - 0.03, temp + 0.03, max(snow_line, 0.13)) * smoothstep(0.3, 0.6, n.y + (moss_n - 0.5) * 0.4);
 	col = mix(col, vec3(0.82, 0.85, 0.91), ssnow);
 	ALBEDO = col;
 
