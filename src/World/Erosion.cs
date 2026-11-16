@@ -14,14 +14,14 @@ public static class Erosion
     {
         public int Droplets = 600_000;
         public int MaxLifetime = 48;
-        public float Inertia = 0.06f;
+        public float Inertia = 0.3f;
         public float CapacityFactor = 5f;
         public float MinCapacity = 0.01f;
         public float DepositSpeed = 0.3f;
         public float ErodeSpeed = 0.35f;
         public float EvaporateSpeed = 0.015f;
         public float Gravity = 4f;
-        public int Radius = 2;
+        public int Radius = 3;
         /// <summary>Høyder deles på denne før erosjon, slik at helning blir "meter per meter".</summary>
         public float HeightScale = 10f;
     }

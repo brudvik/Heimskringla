@@ -175,6 +175,11 @@ void fragment() {
 	float edge = (vnoise(world_pos.xz * 0.05) - 0.5) * 0.06 + (fine - 0.5) * 0.02;
 	float snow = smoothstep(temp - 0.03, temp + 0.03, snow_line + edge);
 	snow *= smoothstep(0.6, 0.8, n.y) * smoothstep(0.2, 0.8, world_pos.y);
+	// Snøfonner i renner og søkk høyt til fjells (ligger igjen hele sommeren)
+	float concave = smoothstep(0.92, 0.7, ao);
+	float alt = smoothstep(135.0, 185.0, world_pos.y + (vnoise(world_pos.xz * 0.02) - 0.5) * 40.0);
+	float gully = alt * concave * smoothstep(0.35, 0.55, n.y) * smoothstep(0.55, 0.35, temp + snow_line * 0.3 - 0.1);
+	snow = max(snow, smoothstep(0.25, 0.55, gully + (fine - 0.5) * 0.2));
 	col = mix(col, vec3(0.80, 0.83, 0.90) * (0.92 + fine * 0.12), snow);
 
 	// --- Våt bakke (mørkere og blankere)

@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, depth_draw_always, specular_schlick_ggx;
+render_mode cull_disabled, depth_draw_always, specular_schlick_ggx, ambient_light_disabled;
 
 // Vann for hav, innsjøer og elver.
 //  - Havet (is_ocean): Gerstner-bølger i vertex-shaderen, styrt av vinden, dempet på grunt vann
@@ -19,6 +19,10 @@ uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform float reflect_strength = 1.0;
 global uniform vec3 sky_horizon;
 global uniform vec3 sky_zenith;
+global uniform vec3 cloud_light;
+global uniform vec3 cloud_shadow;
+global uniform vec4 cloud_params;    // dekke, mørke, natt
+global uniform vec2 cloud_offset;
 global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
 global uniform float wetness;
@@ -65,6 +69,45 @@ vec2 ripple_grad(vec2 p) {
 	float hx = gnoise(p + vec2(e, 0)) + gnoise((p + vec2(e, 0)) * 2.7 + 13.0) * 0.45;
 	float hz = gnoise(p + vec2(0, e)) + gnoise((p + vec2(0, e)) * 2.7 + 13.0) * 0.45;
 	return vec2(hx - h0, hz - h0) / e;
+}
+
+// ---------------------------------------------------------------- Himmel med skyer (kopi av sky.gdshader)
+float sky_hash(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+float sky_vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(sky_hash(i), sky_hash(i + vec2(1, 0)), u.x), mix(sky_hash(i + vec2(0, 1)), sky_hash(i + vec2(1, 1)), u.x), u.y);
+}
+float sky_fbm(vec2 p) {
+	float s = 0.0, a = 0.5;
+	for (int i = 0; i < 5; i++) {
+		s += sky_vnoise(p) * a;
+		p = p * 2.02 + vec2(5.3, 1.7);
+		a *= 0.5;
+	}
+	return s;
+}
+vec3 sky_color(vec3 d) {
+	float up = clamp(d.y, 0.0, 1.0);
+	vec3 col = mix(pow(sky_horizon, vec3(2.2)), pow(sky_zenith, vec3(2.2)), pow(up, 0.55));
+	if (d.y > 0.0) {
+		vec2 uv = d.xz / (d.y + 0.12) * 1.4 + cloud_offset;
+		float cc = cloud_params.x, dark = cloud_params.y;
+		float c = sky_fbm(uv);
+		float cov = smoothstep(1.0 - cc - 0.12, 1.0 - cc + 0.28, c);
+		cov = max(cov, smoothstep(0.75, 1.0, cc));
+		float thick = sky_fbm(uv * 2.0 + 7.0);
+		vec3 ccol = mix(pow(cloud_shadow, vec3(2.2)), pow(cloud_light, vec3(2.2)), clamp(0.35 + thick * 0.6, 0.0, 1.0));
+		ccol *= mix(1.0, 0.45 + thick * 0.3, dark);
+		ccol = mix(ccol, ccol * vec3(0.12, 0.13, 0.18), cloud_params.z);
+		col = mix(col, ccol, cov * smoothstep(0.0, 0.15, d.y) * 0.92);
+	}
+	return col;
 }
 
 // ---------------------------------------------------------------- Gerstner
@@ -177,7 +220,7 @@ void fragment() {
 	vec3 rv = reflect(-VIEW, NORMAL);                  // visningsrom
 	vec3 rw = (INV_VIEW_MATRIX * vec4(rv, 0.0)).xyz;
 	rw.y = abs(rw.y);
-	vec3 sky = mix(pow(sky_horizon, vec3(2.2)), pow(sky_zenith, vec3(2.2)), pow(clamp(rw.y, 0.0, 1.0), 0.5));
+	vec3 sky = sky_color(normalize(rw));
 	vec3 refl = sky;
 	float hit = 0.0;
 	if (reflect_strength > 0.0 && rv.z < 0.2) {
@@ -220,7 +263,9 @@ void fragment() {
 	float scatter = 1.0 - (trans.r + trans.g + trans.b) / 3.0;
 	vec3 lit_body = body * scatter;                     // belyses av sol/himmel (ALBEDO)
 	ALBEDO = mix(lit_body * (1.0 - fres), vec3(0.9, 0.95, 1.0), foam * 0.85);
-	EMISSION = (under * trans * (1.0 - foam) * (1.0 - fres) + refl * fres * reflect_strength) ;
+	// Omgivelseslys (motorens er slått av for vannet, så himmelen ikke speiles to ganger)
+	vec3 amb = pow(mix(sky_horizon, sky_zenith, 0.5), vec3(2.2));
+	EMISSION = under * trans * (1.0 - foam) * (1.0 - fres) + refl * fres * reflect_strength + ALBEDO * amb * 0.6;
 	if (wetness > 0.05) {
 		vec2 cell = floor(world_pos.xz * 3.0);
 		float ph = fract(TIME * 1.3 + hash(cell) * 7.0);

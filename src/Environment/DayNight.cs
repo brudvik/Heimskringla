@@ -181,6 +181,13 @@ public partial class DayNight : Node3D
         _env.FogHeightDensity = 0.0006f + dawn * 0.006f + fog * 0.01f;
         RenderingServer.GlobalShaderParameterSet("sky_horizon", new Vector3(horizon.R, horizon.G, horizon.B));
         RenderingServer.GlobalShaderParameterSet("sky_zenith", new Vector3(top.R, top.G, top.B));
+        // Skyene igjen for vannspeilingen (samme verdier som himmelshaderen får)
+        var cl = new Color(1f, 0.97f, 0.94f).Lerp(sunset, golden * 0.5f).Lerp(flashCol, flash);
+        var cs = top.Lerp(horizon, 0.5f).Darkened(0.15f + dark * 0.2f);
+        RenderingServer.GlobalShaderParameterSet("cloud_light", new Vector3(cl.R, cl.G, cl.B));
+        RenderingServer.GlobalShaderParameterSet("cloud_shadow", new Vector3(cs.R, cs.G, cs.B));
+        RenderingServer.GlobalShaderParameterSet("cloud_params", new Vector4(clouds, dark, nightAmt, 0f));
+        RenderingServer.GlobalShaderParameterSet("cloud_offset", _cloudOffset);
     }
 
     public bool ForceAurora;
