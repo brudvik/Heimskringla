@@ -20,8 +20,18 @@ public static class TerrainTextures
             GD.Print("Terrengteksturer mangler (kjør scripts/fetch_terrain_textures.py) - bruker bare farger.");
             return;
         }
-        mat.SetShaderParameter("albedo_arr", GD.Load<TextureLayered>(Dir + "terrain_albedo.png"));
-        mat.SetShaderParameter("nrao_arr", GD.Load<TextureLayered>(Dir + "terrain_nrao.png"));
+        var alb = GD.Load<TextureLayered>(Dir + "terrain_albedo.png");
+        var nrao = GD.Load<TextureLayered>(Dir + "terrain_nrao.png");
+        mat.SetShaderParameter("albedo_arr", alb);
+        mat.SetShaderParameter("nrao_arr", nrao);
+        // Også globalt, så steiner (rock_formation) kan bruke samme bergtekstur som fjellet
+        RenderingServer.GlobalShaderParameterSet("rock_albedo_arr", alb);
+        RenderingServer.GlobalShaderParameterSet("rock_nrao_arr", nrao);
+        if (ResourceLoader.Exists(Dir + "detail_albedo.png"))
+        {
+            RenderingServer.GlobalShaderParameterSet("detail_albedo", GD.Load<TextureLayered>(Dir + "detail_albedo.png"));
+            RenderingServer.GlobalShaderParameterSet("detail_nrao", GD.Load<TextureLayered>(Dir + "detail_nrao.png"));
+        }
         using var doc = JsonDocument.Parse(FileAccess.GetFileAsString(Dir + "terrain_layers.json"));
         var means = new Vector3[8];
         int i = 0;

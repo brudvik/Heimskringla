@@ -140,7 +140,9 @@ public static class PropLibrary
         });
 
         // ---------- Stein
+        var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
         var boulder = ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 0.75f);
+        foreach (var v in boulder) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         Def(PropKind.Boulder, "Steinblokk", PropRole.Rock, boulder, proc.Boulder, d =>
         {
             d.MaxDistance = 550f; d.MinScale = 0.6f; d.MaxScale = 1.6f; d.Sink = 0.15f;
@@ -154,7 +156,6 @@ public static class PropLibrary
         });
 
         // ---------- Klippeformasjoner: Kenney-former + store MegaKit-steiner, felles steinshader
-        var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
         // Fjellsidene har egne steinlag/klipper i terrenget nå; Kenney-søylene så ut som grå prismer
         // oppå fjellet. Bare avrundede steinutspring, godt nedsenket.
         var cliffs = new List<ModelVariant>();
@@ -312,6 +313,9 @@ public static class PropLibrary
         m.SetShaderParameter("flutter", flutter);
         m.SetShaderParameter("leafy", leafy ? 1f : 0f);
         m.SetShaderParameter("deciduous", deciduous && leafy ? 1f : 0f);
+        bool isBark = n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk");
+        m.SetShaderParameter("bark", isBark ? 1f : 0f);
+        m.SetShaderParameter("bark_layer", deciduous ? 1f : 0f);
         m.ResourceName = n;
         return m;
     }

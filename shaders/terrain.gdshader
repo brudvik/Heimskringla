@@ -132,12 +132,24 @@ void layer_sample(int i, vec3 p, vec3 tw, bool tri, vec2 warp, out vec4 a, out v
 	float s = 1.0 / TILE[i];
 	float li = float(i);
 	if (!tri) {
+		// Mot repetisjon: to prøver med ulik rotasjon/skala/forskyvning, blandet med lavfrekvent
+		// støy (og høydekartet, så overgangen følger strukturen i materialet)
 		vec2 uv = p.xz * s + warp;
-		a = texture(albedo_arr, vec3(uv, li));
-		vec4 m = texture(nrao_arr, vec3(uv, li));
-		vec2 nt = m.xy * 2.0 - 1.0;
+		float ang = 1.9 + li * 0.7;
+		mat2 R = mat2(vec2(cos(ang), sin(ang)), vec2(-sin(ang), cos(ang)));
+		vec2 uv2 = R * (p.xz * s * 0.83) + vec2(0.37, 0.71) * (li + 1.0);
+		float bn = vnoise(p.xz * 0.11 + li * 13.0) * 0.7 + vnoise(p.xz * 0.37) * 0.3;
+		// Bare én prøve utenfor overgangssonen (sparer halvparten av oppslagene på det meste av bakken)
+		vec4 a1 = vec4(0.0), a2 = vec4(0.0), m1 = vec4(0.5, 0.5, 0.8, 1.0), m2 = m1;
+		if (bn < 0.72) { a1 = texture(albedo_arr, vec3(uv, li)); m1 = texture(nrao_arr, vec3(uv, li)); }
+		if (bn > 0.28) { a2 = texture(albedo_arr, vec3(uv2, li)); m2 = texture(nrao_arr, vec3(uv2, li)); }
+		float b = bn < 0.28 ? 0.0 : bn > 0.72 ? 1.0 : smoothstep(0.4, 0.6, bn + (a2.a - a1.a) * 0.25);
+		a = mix(a1, a2, b);
+		vec2 n1 = m1.xy * 2.0 - 1.0;
+		vec2 n2 = transpose(R) * (m2.xy * 2.0 - 1.0);   // normalen roteres tilbake
+		vec2 nt = mix(n1, n2, b);
 		off = vec3(nt.x, 0.0, -nt.y);
-		ra = m.zw;
+		ra = mix(m1.zw, m2.zw, b);
 	} else {
 		vec2 ux = p.zy * s + warp, uy = p.xz * s + warp, uz = p.xy * s + warp;
 		vec4 ax = texture(albedo_arr, vec3(ux, li)), ay = texture(albedo_arr, vec3(uy, li)), az = texture(albedo_arr, vec3(uz, li));

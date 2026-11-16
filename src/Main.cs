@@ -519,6 +519,52 @@ public partial class Main : Node3D
                 }
                 break;
             }
+            case 23: // nærbilde av en trestamme i barskog (bark, mose, rot)
+            {
+                SetFly(false);
+                _dayNight.Day = 4; _dayNight.TimeOfDay = 0.45f;
+                _weather.Set(WeatherKind.Cloudy, true);
+                var p = FindPoint((x, z) => w.GetBiome(x, z) == Biome.PineForest && w.GetNormal(x, z, 3f).Y > 0.95f);
+                _player.Teleport(p.X, p.Z);
+                break;
+            }
+            case 24: // ... og sikt inn på nærmeste gran/furu når de nære trærne er forfremmet
+            {
+                TreeNode tree = null; float bd = float.MaxValue;
+                foreach (var nd in _vegetation.GetChildren())
+                    if (nd is TreeNode tn && (tn.Def.Kind == PropKind.Pine || tn.Def.Kind == PropKind.Spruce))
+                    {
+                        float d = tn.GlobalPosition.DistanceTo(_player.GlobalPosition);
+                        if (d < bd) { bd = d; tree = tn; }
+                    }
+                if (tree != null)
+                {
+                    var dir = (_player.GlobalPosition - tree.GlobalPosition) with { Y = 0 };
+                    var at = tree.GlobalPosition + dir.Normalized() * 2.2f;
+                    _player.Teleport(at.X, at.Z);
+                    var to = tree.GlobalPosition - at;
+                    _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z);
+                    _player.CameraYaw += 0.5f;   // figuren til siden, stammen i midten
+                    _player.CameraPitch = 0.05f; _player.CameraDistance = 1.6f;
+                    GD.Print($"[autotest] stamme: {tree.Def.Name}");
+                }
+                break;
+            }
+            case 25: // nærbilde av en steinblokk
+            {
+                var rock = Nearest<RockNode>();
+                GD.Print($"[autotest] stein: {rock?.GlobalPosition}");
+                if (rock != null)
+                {
+                    var dir = (_player.GlobalPosition - rock.GlobalPosition) with { Y = 0 };
+                    var at = rock.GlobalPosition + dir.Normalized() * 4f;
+                    _player.Teleport(at.X, at.Z);
+                    var to = rock.GlobalPosition - at;
+                    _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z);
+                    _player.CameraPitch = -0.25f; _player.CameraDistance = 2.5f;
+                }
+                break;
+            }
             default:
                 GetTree().Quit();
                 break;

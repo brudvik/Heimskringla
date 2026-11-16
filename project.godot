@@ -100,3 +100,19 @@ cloud_offset={
 "type": "vec2",
 "value": Vector2(0, 0)
 }
+rock_albedo_arr={
+"type": "sampler2DArray",
+"value": ""
+}
+rock_nrao_arr={
+"type": "sampler2DArray",
+"value": ""
+}
+detail_albedo={
+"type": "sampler2DArray",
+"value": ""
+}
+detail_nrao={
+"type": "sampler2DArray",
+"value": ""
+}

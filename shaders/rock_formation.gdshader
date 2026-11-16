@@ -6,6 +6,13 @@ shader_type spatial;
 
 uniform float snow_height = 225.0;
 
+global uniform sampler2DArray rock_albedo_arr : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+global uniform sampler2DArray rock_nrao_arr : filter_linear_mipmap_anisotropic, repeat_enable;
+global uniform sampler2DArray detail_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+global uniform float snow_line;
+global uniform sampler2D world_map : filter_linear;
+global uniform vec4 world_rect;
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 
@@ -80,17 +87,40 @@ void fragment() {
 	float snow = smoothstep(snow_height - 25.0, snow_height + 15.0, world_pos.y + moss_n * 20.0);
 	vec3 col = mix(rock, moss, up * smoothstep(0.35, 0.6, moss_n) * (1.0 - snow));
 	col = mix(col, vec3(0.86, 0.89, 0.94), snow * smoothstep(0.3, 0.7, n.y));
+	// Ekte bergtekstur (berglaget i terrengteksturene), triplanart, som detalj rundt fargen over
+	float dist = length(VERTEX);
+	float near = 1.0 - smoothstep(60.0, 400.0, dist);
+	float tnear = 1.0 - smoothstep(120.0, 220.0, dist);
+	vec3 tex_off = vec3(0.0);
+	float tex_rough = 0.85;
+	if (tnear > 0.001) {
+		float s = 1.0 / 4.0;
+		vec2 ux = world_pos.zy * s, uy = world_pos.xz * s, uz = world_pos.xy * s;
+		vec4 ax = texture(rock_albedo_arr, vec3(ux, 4.0)), ay = texture(rock_albedo_arr, vec3(uy, 4.0)), az = texture(rock_albedo_arr, vec3(uz, 4.0));
+		vec4 mx = texture(rock_nrao_arr, vec3(ux, 4.0)), my = texture(rock_nrao_arr, vec3(uy, 4.0)), mz = texture(rock_nrao_arr, vec3(uz, 4.0));
+		vec3 ta = (ax * w.x + ay * w.y + az * w.z).rgb;
+		vec3 detail = clamp(ta / vec3(0.0799, 0.0745, 0.0616), vec3(0.3), vec3(2.5));   // snittfarge Rock030
+		vec2 nx = mx.xy * 2.0 - 1.0, ny = my.xy * 2.0 - 1.0, nz = mz.xy * 2.0 - 1.0;
+		tex_off = (vec3(0.0, nx.y, nx.x) * w.x + vec3(ny.x, 0.0, -ny.y) * w.y + vec3(nz.x, nz.y, 0.0) * w.z) * tnear;
+		tex_rough = (mx.z * w.x + my.z * w.y + mz.z * w.z);
+		// Mosen får ekte mosetekstur
+		vec3 mt = texture(detail_albedo, vec3(world_pos.xz * 0.5, 2.0)).rgb;
+		float mossy = up * smoothstep(0.35, 0.6, moss_n) * (1.0 - snow);
+		col *= mix(vec3(1.0), mix(detail, clamp(mt / vec3(0.0694, 0.1329, 0.0098), vec3(0.4), vec3(2.0)), mossy), tnear);
+	}
+	// Årstidssnø på toppen av steinene
+	float temp = texture(world_map, (world_pos.xz - world_rect.xy) * world_rect.zw).r;
+	float ssnow = smoothstep(temp - 0.03, temp + 0.03, snow_line) * smoothstep(0.35, 0.7, n.y);
+	col = mix(col, vec3(0.82, 0.85, 0.91), ssnow);
 	ALBEDO = col;
 
 	// Bump (triplanar)
-	float dist = length(VERTEX);
-	float near = 1.0 - smoothstep(60.0, 400.0, dist);
 	vec2 gx = grad2(world_pos.zy * 0.35, 0.1);
 	vec2 gy = grad2(world_pos.xz * 0.35, 0.1);
 	vec2 gz = grad2(world_pos.xy * 0.35, 0.1);
 	vec3 pert = vec3(0.0, gx.y, gx.x) * w.x + vec3(gy.x, 0.0, gy.y) * w.y + vec3(gz.x, gz.y, 0.0) * w.z;
-	vec3 bn = normalize(n - pert * 0.9 * near);
+	vec3 bn = normalize(n - pert * 0.9 * near * (1.0 - tnear * 0.8) + tex_off * 0.9);
 	NORMAL = normalize((VIEW_MATRIX * vec4(bn, 0.0)).xyz);
-	ROUGHNESS = mix(0.85, 0.7, snow);
+	ROUGHNESS = mix(mix(0.85, tex_rough, tnear), 0.7, max(snow, ssnow));
 	SPECULAR = 0.25;
 }

@@ -24,3 +24,6 @@ Terrengteksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering p�
 - Gravel041 (ur/grus) - https://ambientcg.com/view?id=Gravel041
 - Ground080 (sand) - https://ambientcg.com/view?id=Ground080
 - Snow010A (snø) - https://ambientcg.com/view?id=Snow010A
+- Bark014 (bark (gran/furu)) - https://ambientcg.com/view?id=Bark014
+- Bark012 (bark (løvtre)) - https://ambientcg.com/view?id=Bark012
+- Moss002 (mose) - https://ambientcg.com/view?id=Moss002

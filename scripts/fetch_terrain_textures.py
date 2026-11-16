@@ -8,7 +8,8 @@ Standard: zip-mappe = D:/3dmodels/zip/ambientcg, utpakket-mappe = D:/3dmodels/ex
 Steg:
   1. Laster ned <id>_2K-JPG.zip for hvert lag i LAYERS (hoppes over hvis zip-en finnes).
   2. Pakker ut til <utpakket>/<id>/ (bare bildefiler, bare filnavn - ingen stier fra zip-en brukes).
-  3. Skalerer til SIZE og pakker lagene oppå hverandre (1 lag = 1 skive):
+  3. Skalerer til SIZE og pakker lagene oppå hverandre (1 lag = 1 skive). Terrenglagene og
+     detaljlagene (bark/mose til trær og steiner, prefiks "detail_") pakkes hver for seg:
        assets/terrain/terrain_albedo.png  RGB = farge (sRGB), A = høyde (til høydeblanding)
        assets/terrain/terrain_nrao.png    R,G = normal x,y (OpenGL), B = ruhet, A = AO
   4. Skriver .import-filer så Godot importerer dem som komprimerte Texture2DArray med mipmaps,
@@ -30,6 +31,13 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "terrain")
 SIZE = 1024
+
+# Detaljteksturer for props (bark og mose på trær/steiner): assets/terrain/detail_albedo.png / detail_nrao.png
+DETAIL_LAYERS = [
+    ("Bark014", "bark (gran/furu)"),
+    ("Bark012", "bark (løvtre)"),
+    ("Moss002", "mose"),
+]
 
 # (ambientCG-id, navn) - rekkefølgen = lagindeks
 LAYERS = [
@@ -95,17 +103,12 @@ def srgb_to_linear(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
-def main():
-    zip_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/3dmodels/zip/ambientcg"
-    ext_dir = sys.argv[2] if len(sys.argv) > 2 else "D:/3dmodels/extracted/ambientcg"
-    os.makedirs(zip_dir, exist_ok=True)
-    os.makedirs(OUT, exist_ok=True)
-
-    albedo = Image.new("RGBA", (SIZE, SIZE * len(LAYERS)))
-    nrao = Image.new("RGBA", (SIZE, SIZE * len(LAYERS)))
+def build(layers, prefix, zip_dir, ext_dir):
+    albedo = Image.new("RGBA", (SIZE, SIZE * len(layers)))
+    nrao = Image.new("RGBA", (SIZE, SIZE * len(layers)))
     means = []
-    for i, (asset_id, name) in enumerate(LAYERS):
-        print(f"[{i}] {asset_id} ({name})")
+    for i, (asset_id, name) in enumerate(layers):
+        print(f"[{prefix} {i}] {asset_id} ({name})")
         folder = os.path.join(ext_dir, asset_id)
         extract(download(asset_id, zip_dir), folder)
 
@@ -130,29 +133,39 @@ def main():
         mean = [sum(srgb_to_linear(float(p[c])) for p in px) / len(px) for c in range(3)]
         means.append({"id": asset_id, "name": name, "mean_linear": [round(m, 4) for m in mean]})
 
-    albedo.save(os.path.join(OUT, "terrain_albedo.png"), optimize=True)
-    nrao.save(os.path.join(OUT, "terrain_nrao.png"), optimize=True)
-    with open(os.path.join(OUT, "terrain_layers.json"), "w", encoding="utf-8") as f:
+    albedo.save(os.path.join(OUT, f"{prefix}_albedo.png"), optimize=True)
+    nrao.save(os.path.join(OUT, f"{prefix}_nrao.png"), optimize=True)
+    with open(os.path.join(OUT, f"{prefix}_layers.json"), "w", encoding="utf-8") as f:
         json.dump(means, f, indent=2, ensure_ascii=False)
 
-    for name in ("terrain_albedo.png", "terrain_nrao.png"):
+    for name in (f"{prefix}_albedo.png", f"{prefix}_nrao.png"):
         imp = os.path.join(OUT, name + ".import")
         with open(imp, "w", encoding="utf-8", newline="\n") as f:
             f.write(
                 '[remap]\n\nimporter="2d_array_texture"\ntype="CompressedTexture2DArray"\n\n'
                 "[params]\n\ncompress/mode=2\ncompress/high_quality=true\ncompress/lossy_quality=0.7\n"
                 "compress/hdr_compression=1\ncompress/channel_pack=0\nmipmaps/generate=true\nmipmaps/limit=-1\n"
-                f"slices/horizontal=1\nslices/vertical={len(LAYERS)}\n"
+                f"slices/horizontal=1\nslices/vertical={len(layers)}\n"
             )
+
+
+def main():
+    zip_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/3dmodels/zip/ambientcg"
+    ext_dir = sys.argv[2] if len(sys.argv) > 2 else "D:/3dmodels/extracted/ambientcg"
+    os.makedirs(zip_dir, exist_ok=True)
+    os.makedirs(OUT, exist_ok=True)
+    build(LAYERS, "terrain", zip_dir, ext_dir)
+    build(DETAIL_LAYERS, "detail", zip_dir, ext_dir)
 
     lic = os.path.join(ROOT, "assets", "LICENSES.md")
     with open(lic, encoding="utf-8") as f:
         text = f.read()
-    if "ambientCG" not in text:
-        with open(lic, "a", encoding="utf-8", newline="\n") as f:
+    with open(lic, "a", encoding="utf-8", newline="\n") as f:
+        if "ambientCG" not in text:
             f.write("\n## assets/terrain/ - ambientCG (CC0 1.0)\n\n")
-            f.write("Terrengteksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering påkrevd):\n")
-            for asset_id, name in LAYERS:
+            f.write("Teksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering påkrevd):\n")
+        for asset_id, name in LAYERS + DETAIL_LAYERS:
+            if asset_id not in text:
                 f.write(f"- {asset_id} ({name}) - https://ambientcg.com/view?id={asset_id}\n")
     print("Ferdig:", OUT)
 
