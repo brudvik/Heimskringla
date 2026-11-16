@@ -35,8 +35,8 @@ public static class VegetationGenerator
         /* Ocean    */ { 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f },
         /* Beach    */ { 0f, 0f, 0f, 0f, 0.002f, 0.004f, 0f, 0f, 0f, 0.008f, 0.03f, 0.012f, 0.00090f, 0.012f },
         /* Meadow   */ { 0.002f, 0f, 0.012f, 0.012f, 0f, 0.02f, 0.006f, 0.05f, 0.002f, 0.005f, 0.02f, 0.012f, 0.00012f, 0f },
-        /* Forest   */ { 0.02f, 0f, 0.10f, 0.05f, 0.003f, 0.04f, 0.04f, 0.012f, 0.012f, 0.008f, 0.015f, 0.06f, 0.00024f, 0f },
-        /* Pine     */ { 0.13f, 0.035f, 0.012f, 0f, 0.004f, 0.015f, 0.035f, 0f, 0.014f, 0.02f, 0.02f, 0.06f, 0.00045f, 0f },
+        /* Forest   */ { 0.05f, 0f, 0.17f, 0.075f, 0.004f, 0.06f, 0.07f, 0.012f, 0.014f, 0.01f, 0.015f, 0.06f, 0.00024f, 0f },
+        /* Pine     */ { 0.27f, 0.06f, 0.03f, 0f, 0.006f, 0.02f, 0.06f, 0f, 0.016f, 0.025f, 0.02f, 0.06f, 0.00045f, 0f },
         /* Swamp    */ { 0.005f, 0.004f, 0.03f, 0f, 0.02f, 0.06f, 0.05f, 0.006f, 0.008f, 0f, 0.005f, 0.03f, 0f, 0f },
         /* Tundra   */ { 0.004f, 0f, 0.02f, 0f, 0.006f, 0.03f, 0f, 0.01f, 0.002f, 0.03f, 0.04f, 0.01f, 0.00090f, 0f },
         /* Mountain */ { 0.012f, 0.008f, 0f, 0f, 0.004f, 0.004f, 0f, 0f, 0f, 0.05f, 0.04f, 0f, 0.00210f, 0f },
@@ -63,6 +63,19 @@ public static class VegetationGenerator
     }
 
     private const int FlowerKind = (int)PropKind.Flower, CliffKind = (int)PropKind.Cliff;
+    private const int SpruceKind = (int)PropKind.Spruce, BirchKind = (int)PropKind.Birch, OakKind = (int)PropKind.Oak;
+    private const int FernKind = (int)PropKind.Fern, BushKind = (int)PropKind.Bush;
+
+    /// <summary>
+    /// Trær får en aldersfordeling i stedet for jevn størrelse: ~25 % unge (små, smale i kronen),
+    /// ~62 % voksne (def-ens vanlige spenn) og ~13 % gamle kjemper. sc er jevnt fordelt 0..1.
+    /// </summary>
+    private static float TreeScale(PropDef def, float sc)
+    {
+        if (sc < 0.25f) return Mathf.Lerp(def.MinScale * 0.38f, def.MinScale * 0.8f, sc / 0.25f);
+        if (sc < 0.87f) return Mathf.Lerp(def.MinScale, def.MaxScale, (sc - 0.25f) / 0.62f);
+        return Mathf.Lerp(def.MaxScale * 1.05f, def.MaxScale * 1.4f, (sc - 0.87f) / 0.13f);
+    }
 
     public static long MakeId(int cx, int cz, int index) =>
         ((long)(cx + 4096) << 40) | ((long)(cz + 4096) << 20) | (long)index;
@@ -98,14 +111,29 @@ public static class VegetationGenerator
             int b = (int)biome;
 
             float clump = Biomes.SmoothStep(-0.35f, 0.35f, w.ForestClump(x, z));
-            float treeMul = 0.15f + 1.2f * clump;
+            float treeMul = 0.2f + 1.05f * clump;
+            // Bestand: i barskogen står det bjørkeholt, i lauvskogen granholt (store flekker)
+            float stand = w.ColorNoise(x * 0.013f + 517f, z * 0.013f - 211f);
+            float birchStand = Biomes.SmoothStep(0.15f, 0.5f, stand), spruceStand = Biomes.SmoothStep(0.15f, 0.5f, -stand);
             // Dyretråkk: bare småstein og greiner langs stien
             float trail = w.TrailMask(x, z, h, n.Y);
             float total = 0f;
             for (int k = 0; k < PlacedKinds; k++)
             {
                 float d = Density[b, k];
+                if (biome == Biome.PineForest)
+                {
+                    if (k == SpruceKind) d *= 1f - 0.7f * birchStand;
+                    else if (k == BirchKind) d += 0.17f * birchStand;
+                }
+                else if (biome == Biome.Forest)
+                {
+                    if (k == SpruceKind) d += 0.16f * spruceStand;
+                    else if (k == BirchKind || k == OakKind) d *= 1f - 0.6f * spruceStand;
+                }
                 if (k < TreeKinds) d *= treeMul;
+                // Undervegetasjon (bregner/busker) der skogen er tett
+                if (k == FernKind || k == BushKind) d *= 0.6f + clump * (biome is Biome.Forest or Biome.PineForest ? 1.2f : 0.4f);
                 if (k == FlowerKind) d *= 1f + 3f * (1f - clump);          // blomstereng i lysningene
                 if (k == CliffKind) d *= 0.2f + 4f * Biomes.SmoothStep(0.9f, 0.6f, n.Y);   // helst i skrenter
                 if (trail > 0.3f && k != (int)PropKind.Stone && k != (int)PropKind.Branch) d = 0f;
@@ -134,7 +162,10 @@ public static class VegetationGenerator
             }
             int variant = vFrom + Math.Min((int)(vr * vCount), vCount - 1);
             var mv = def.Variants[variant];
-            float scale = Mathf.Lerp(def.MinScale, def.MaxScale, sc) * mv.BaseScale;
+            // Klippeskall (bare forsiden skannet) hører hjemme i bratte skrenter; på slak mark
+            // ligger de som bleke plater
+            if (mv.FaceDir != null && n.Y > 0.78f) continue;
+            float scale = (def.Role == PropRole.Tree ? TreeScale(def, sc) : Mathf.Lerp(def.MinScale, def.MaxScale, sc)) * mv.BaseScale;
             // Skannede klippeskall: forsiden ut fra skråningen (baksiden inn i fjellet)
             if (mv.FaceDir is Vector3 fd && new Vector2(n.X, n.Z).LengthSquared() > 1e-4f)
                 yaw = MathF.Atan2(n.X, n.Z) - MathF.Atan2(fd.X, fd.Z) + (vr - 0.5f) * 0.6f;

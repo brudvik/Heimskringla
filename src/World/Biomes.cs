@@ -24,9 +24,9 @@ public static class Biomes
 {
     public static readonly Color Sand = new(0.80f, 0.74f, 0.55f);
     public static readonly Color SeaFloor = new(0.52f, 0.48f, 0.36f);
-    public static readonly Color MeadowGrass = new(0.44f, 0.60f, 0.22f);
-    public static readonly Color ForestFloor = new(0.31f, 0.46f, 0.17f);
-    public static readonly Color PineFloor = new(0.25f, 0.36f, 0.15f);
+    public static readonly Color MeadowGrass = new(0.37f, 0.53f, 0.20f);
+    public static readonly Color ForestFloor = new(0.28f, 0.39f, 0.17f);
+    public static readonly Color PineFloor = new(0.24f, 0.31f, 0.15f);
     public static readonly Color SwampMud = new(0.34f, 0.36f, 0.19f);
     public static readonly Color Heath = new(0.52f, 0.49f, 0.33f);
     public static readonly Color Rock = new(0.45f, 0.43f, 0.40f);

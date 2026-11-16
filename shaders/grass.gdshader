@@ -34,6 +34,7 @@ varying float tip;
 varying float v_hide;
 varying float v_gust;
 varying float v_rnd;
+varying float dryness;
 
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -71,7 +72,8 @@ void vertex() {
 	base_col = pow(INSTANCE_CUSTOM.rgb, vec3(2.2));
 	// Tørre/frodige flekker som i terrengshaderen
 	float big = gnoise_v(root.xz * 0.012), mid = gnoise_v(root.xz * 0.07 + 31.0);
-	base_col = mix(base_col, base_col * vec3(1.18, 1.08, 0.72), smoothstep(0.55, 0.85, big) * 0.55);
+	dryness = smoothstep(0.55, 0.85, big);
+	base_col = mix(base_col, base_col * vec3(1.18, 1.08, 0.72), dryness * 0.55);
 	base_col = mix(base_col, base_col * vec3(0.82, 0.95, 0.80), smoothstep(0.45, 0.15, mid) * 0.45);
 	// Hver tust litt ulik i farge
 	base_col *= mix(vec3(0.9, 1.0, 0.85), vec3(1.1, 1.02, 0.9), INSTANCE_CUSTOM.a);
@@ -83,9 +85,16 @@ void fragment() {
 	if (v_hide > 0.5) discard;
 	// Mørk ved roten (tett gress skygger for seg selv), lys og gulgrønn mot tuppen
 	float ao = mix(0.6, 1.0, smoothstep(0.0, 0.6, tip));
-	vec3 tipc = base_col * vec3(1.25, 1.3, 0.95) + vec3(0.03, 0.035, 0.0);
-	vec3 col = mix(base_col * 0.95, tipc, smoothstep(0.2, 1.0, tip)) * ao;
+	// Tuppene lysere og varmere (sollys og blomstring), ikke mer mettet grønne
+	vec3 tipc = base_col * vec3(1.22, 1.16, 0.88) + vec3(0.03, 0.026, 0.006);
+	vec3 col = mix(base_col * 0.9, tipc, smoothstep(0.2, 1.0, tip)) * ao;
 	col *= 0.9 + v_rnd * 0.2;
+	// Enkelte visne strå (halm) innimellom, flere der enga er tørr
+	float dry = step(0.9 - dryness * 0.25, fract(v_rnd * 13.7));
+	col = mix(col, vec3(0.36, 0.3, 0.17) * ao * (0.8 + tip * 0.5), dry * 0.85);
+	// Dempet metning: naturlig eng, ikke plenmaling
+	float lum = dot(col, vec3(0.3, 0.59, 0.11));
+	col = mix(vec3(lum), col, 0.74);
 	// Kastene lyser opp gresset (strå vender undersiden mot lyset)
 	col *= 1.0 + v_gust * wind_strength * 0.25 * tip;
 	// Litt mørkere kanter på strået
@@ -93,7 +102,7 @@ void fragment() {
 	ALBEDO = col;
 	ROUGHNESS = mix(0.75, 0.45, wetness);
 	SPECULAR = 0.25;
-	BACKLIGHT = col * 0.6;
+	BACKLIGHT = col * 0.4;
 	AO = ao;
 	AO_LIGHT_AFFECT = 0.4;
 }

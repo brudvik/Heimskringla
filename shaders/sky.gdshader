@@ -76,11 +76,13 @@ void sky() {
 
 	float sd = max(dot(d, normalize(sun_dir)), 0.0);
 	float sun_vis = smoothstep(-0.12, 0.02, sun_dir.y);
-	col += sun_color * (pow(sd, 6.0) * 0.18 + pow(sd, 120.0) * 0.8) * sun_vis;
+	// Bred, myk lysning rundt sola (mest nær horisonten, der lufta er tykkest) og en strammere glorie
+	float haze = 1.0 + (1.0 - up) * 0.8;
+	col += sun_color * (pow(sd, 8.0) * 0.12 * haze + pow(sd, 300.0) * 0.9) * sun_vis;
 
 	if (!AT_CUBEMAP_PASS) {
-		// Sol-skive
-		col += sun_color * smoothstep(0.9993, 0.99965, sd) * 25.0 * sun_vis;
+		// Sol-skive: liten og skarp (bloom gjør resten), ikke en stor hvit flekk
+		col += sun_color * smoothstep(0.99986, 0.99993, sd) * 40.0 * sun_vis;
 
 		// Stjerner
 		if (night > 0.01 && d.y > 0.0) {

@@ -11,6 +11,8 @@
 #   HK_NOPRECIP=1        ingen regn/snø-partikler (feilsøking/ytelse)
 #   HK_LOOKDOWN=1        steg 7 tar bildet rett ned på bakken (sjekk av terrengshader)
 #   HK_DECALTEST=1       steg 13 legger en stor rød decal ved figuren (sjekk av decals)
+#   HK_NOVOLFOG=1        slå av volumetrisk tåke (ytelse/feilsøking)
+#   HK_NOAUTOEXP=1       slå av automatisk eksponering
 set -e
 cd "$(dirname "$0")/.."
 OUT="${1:?Oppgi utmappe for skjermbilder}"

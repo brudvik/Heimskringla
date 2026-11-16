@@ -81,6 +81,12 @@ void fragment() {
 		vec3 autumn = season_leaf_tint.rgb * (0.6 + lum * 1.6) * mix(vec3(1.0), vec3(1.15, 0.8, 0.6), v_hash);
 		c.rgb = mix(c.rgb, autumn, amt);
 		c.rgb = mix(c.rgb, c.rgb * vec3(0.8, 0.85, 0.85), season_conifer * (1.0 - deciduous));
+		// Hvert tre har sin egen tone: noen friske gulgrønne, noen mørke blågrønne, ulik lyshet
+		vec3 tint = mix(vec3(0.84, 0.93, 0.92), vec3(1.12, 1.07, 0.82), v_hash);
+		c.rgb *= tint * (0.86 + 0.26 * fract(v_hash * 7.31));
+		// Bartrær: mørkere, kjøligere og mindre mettet grønt (norsk granskog), ikke leketøysgrønt
+		vec3 dk = c.rgb * vec3(0.6, 0.74, 0.72);
+		c.rgb = mix(c.rgb, mix(vec3(dot(dk, vec3(0.3, 0.59, 0.11))), dk, 0.8), 1.0 - deciduous);
 		// Fargevariasjon per bladklump (litt lysere/gulere og mørkere/blåere partier)
 		float cl = ihash(obj_pos * 1.2 + v_hash * 9.0);
 		c.rgb *= mix(vec3(0.85, 0.9, 0.95), vec3(1.12, 1.08, 0.88), cl);

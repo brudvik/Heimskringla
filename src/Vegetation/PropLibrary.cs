@@ -82,7 +82,7 @@ public static class PropLibrary
             if (m.GetSurfaceCount() > 1 && m.SurfaceGetMaterial(1) is BaseMaterial3D leaves)
             {
                 var lm = (BaseMaterial3D)leaves.Duplicate();
-                lm.AlbedoColor = new Color(1.25f, 1.35f, 0.75f);
+                lm.AlbedoColor = new Color(1.02f, 1.1f, 0.74f);   // lysere, gulere bjørkeløv (men ikke neon)
                 ((ArrayMesh)m).SurfaceSetMaterial(1, lm);
             }
             birch.Add(new ModelVariant { Mesh = m, Aabb = v.Aabb, BaseScale = 0.85f });

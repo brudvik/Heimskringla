@@ -81,13 +81,16 @@ public partial class GrassManager : Node3D
             float ny = 0.7f / MathF.Sqrt(hx * hx + hz * hz + 0.49f);
             float temp = w.GetTemp(x, z), moist = w.GetMoist(x, z);
             var biome = Biomes.Classify(h, temp, moist, ny);
-            float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.78f, 0.9f, ny)
+            float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.66f, 0.84f, ny)
                             * (1f - w.TrailMask(x, z, h, ny));
+            // Under tett skog er det for mørkt for mye gress (bregner og mose tar over); lysningene er grønne
+            if (biome is Biome.Forest or Biome.PineForest)
+                density *= 1f - 0.65f * Biomes.SmoothStep(-0.35f, 0.35f, w.ForestClump(x, z));
             if (roll >= density) continue;
             var col = Biomes.GroundColor(h, temp, moist, ny, w.GetRock(x, z));
             // Større tuster der det er frodig, og "enger" med høyere gress
             float meadow = w.ColorNoise(x * 0.15f, z * 0.15f) * 0.5f + 0.5f;
-            float s = (0.75f + sc * 0.5f) * (0.8f + meadow * 0.6f) * (0.8f + moist * 0.4f);
+            float s = (0.75f + sc * 0.5f) * (0.8f + meadow * 0.45f) * (0.8f + moist * 0.4f);
             var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(s, s, s));
             data.Add(basis.X.X); data.Add(basis.Y.X); data.Add(basis.Z.X); data.Add(x);
             data.Add(basis.X.Y); data.Add(basis.Y.Y); data.Add(basis.Z.Y); data.Add(h - 0.05f);
