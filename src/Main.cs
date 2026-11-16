@@ -155,6 +155,7 @@ public partial class Main : Node3D
         _weather = new Weather { Name = "Weather" };
         AddChild(_weather);
         _dayNight.Weather = _weather;
+        AddChild(new Ambience { Name = "Ambience" });
 
         _terrain = new TerrainManager { Name = "Terrain" };
         AddChild(_terrain);
@@ -201,7 +202,14 @@ public partial class Main : Node3D
             AddChild(fire);
             fire.GlobalPosition = new Vector3(f[0], f[1], f[2]);
         }
-        if (_autoTestDir != null) { _weather.Locked = true; _weather.Set(WeatherKind.Cloudy, true); }
+        if (_autoTestDir != null)
+        {
+            _weather.Locked = true; _weather.Set(WeatherKind.Cloudy, true);
+            // Ta opp lyden for hvert steg (audio_XX.wav), så lydbildet kan sjekkes/lyttes til
+            _rec = new AudioEffectRecord();
+            AudioServer.AddBusEffect(0, _rec);
+            _rec.SetRecordingActive(true);
+        }
         _state = State.Playing;
     }
 
@@ -248,6 +256,7 @@ public partial class Main : Node3D
     private bool _autoSwing;
     private float _fpsSum;
     private bool _loadShot;
+    private AudioEffectRecord _rec;
     private readonly int _autoFrom = int.TryParse(OS.GetEnvironment("HK_FROM"), out int f) ? f : 0;
     private void SetFly(bool on) { if (_player.Flying != on) _player.ToggleFly(); }
     private int _fpsN;
@@ -263,6 +272,12 @@ public partial class Main : Node3D
         _autoT = 0;
         string name = $"shot_{_autoStep:D2}.png";
         GetViewport().GetTexture().GetImage().SavePng(System.IO.Path.Combine(_autoTestDir, name));
+        if (_rec != null)
+        {
+            _rec.SetRecordingActive(false);
+            _rec.GetRecording()?.SaveToWav(System.IO.Path.Combine(_autoTestDir, $"audio_{_autoStep:D2}.wav"));
+            _rec.SetRecordingActive(true);
+        }
         GD.Print($"[autotest] figur: {_player.VisualState}");
         GD.Print($"[autotest] fotspor: {Footprints.Spawned} {Footprints.LastInfo}");
         GD.Print($"[autotest] {name}: snitt-FPS {_fpsSum / Math.Max(1, _fpsN):F0}\n{DebugText()}\n");

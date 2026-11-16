@@ -48,9 +48,9 @@ public partial class DayNight : Node3D
             GlowHdrThreshold = 1.2f,
 
             FogEnabled = true,
-            FogDensity = 0.00028f,
+            FogDensity = 0.0004f,
             FogSkyAffect = 0.45f,
-            FogAerialPerspective = 0.5f,
+            FogAerialPerspective = 0.85f,
             FogSunScatter = 0.35f,
             FogHeight = 25f,
             FogHeightDensity = 0.0f,
@@ -174,7 +174,7 @@ public partial class DayNight : Node3D
         _env.AmbientLightEnergy = Mathf.Lerp(0.12f, 0.55f, day) * (1f - dark * 0.25f) + flash * 1.5f + Aurora * nightAmt * 0.06f;
         _env.FogLightColor = horizon;
         _env.FogLightEnergy = Mathf.Lerp(0.25f, 1f, day);
-        _env.FogDensity = 0.00028f + fog * 0.0035f + precip * 0.0012f;
+        _env.FogDensity = 0.0004f + fog * 0.0035f + precip * 0.0012f;
         _env.FogSunScatter = 0.35f * (1f - dark);
         // Morgendis i dalene rundt soloppgang
         float dawn = Biomes.SmoothStep(0.18f, 0.27f, TimeOfDay) * (1f - Biomes.SmoothStep(0.30f, 0.38f, TimeOfDay));

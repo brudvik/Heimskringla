@@ -151,6 +151,12 @@ void fragment() {
 	float strata = sin(world_pos.y * 0.33 + strata_n);
 	float band = smoothstep(0.75, 1.0, strata) * fbm(world_pos.xz * 0.02 + 5.0);
 	vec3 rock_col = col * rock_tint * (1.0 - band * 0.25);
+	// Store toneflekker over hele fjellsider (lyse og mørke partier, ikke én jevn grå vegg)
+	float macro = tri_vnoise(world_pos, tw, 0.0025) * 0.6 + tri_vnoise(world_pos, tw, 0.006) * 0.4;
+	rock_col *= mix(0.78, 1.18, macro);
+	// Mørke vannsig nedover stupene (uregelmessige, ikke et kamstriper-mønster)
+	float seep = vnoise(vec2(dot(world_pos.xz, vec2(0.7, 0.7)) * 0.09, world_pos.y * 0.006));
+	rock_col *= 1.0 - smoothstep(0.7, 0.9, seep) * 0.25 * smoothstep(0.75, 0.95, steep);
 	// Lav/mose i forsenkninger på fjellet
 	rock_col = mix(rock_col, rock_col * vec3(0.85, 0.95, 0.70), smoothstep(0.55, 0.8, rv2) * 0.5);
 	// Sprekker og kanter i berget (bare nært)

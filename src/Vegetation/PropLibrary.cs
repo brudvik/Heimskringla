@@ -155,17 +155,15 @@ public static class PropLibrary
 
         // ---------- Klippeformasjoner: Kenney-former + store MegaKit-steiner, felles steinshader
         var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
+        // Fjellsidene har egne steinlag/klipper i terrenget nå; Kenney-søylene så ut som grå prismer
+        // oppå fjellet. Bare avrundede steinutspring, godt nedsenket.
         var cliffs = new List<ModelVariant>();
-        foreach (var c in new[] { "A", "B", "C", "D", "G", "H", "I" })
-            cliffs.Add(ModelLibrary.Variant(KenneyNature + $"stone_tall{c}.glb", 11f));
-        foreach (var c in new[] { "B", "D", "F" })
-            cliffs.Add(ModelLibrary.Variant(KenneyNature + $"stone_large{c}.glb", 14f));
         cliffs.AddRange(ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 3.2f));
         cliffs.RemoveAll(v => v == null);
         foreach (var v in cliffs) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         Def(PropKind.Cliff, "Klippe", PropRole.Obstacle, cliffs, proc.Boulder, d =>
         {
-            d.MaxDistance = 1000f; d.MinScale = 1.0f; d.MaxScale = 1.9f; d.Sink = 0.3f;
+            d.MaxDistance = 1000f; d.MinScale = 0.8f; d.MaxScale = 1.6f; d.Sink = 0.9f;
         });
 
         // ---------- Drivved på strendene (gir tømmer)

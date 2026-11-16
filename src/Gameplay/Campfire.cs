@@ -72,6 +72,12 @@ public partial class Campfire : StaticBody3D, IInteractable
         _sparks = MakeSparks();
         _smoke = MakeSmoke();
         _embers = MakeEmbers();
+        // Knitring (prosedyrisk lyd, 3D)
+        var gen = new AudioStreamGenerator { MixRate = 22050, BufferLength = 0.2f };
+        _sound = new AudioStreamPlayer3D { Stream = gen, UnitSize = 3f, MaxDistance = 40f, Position = new Vector3(0, 0.5f, 0), VolumeDb = -2f };
+        AddChild(_sound);
+        _sound.Play();
+        _pb = (AudioStreamGeneratorPlayback)_sound.GetStreamPlayback();
         AddChild(_embers);
         AddChild(_flames);
         AddChild(_sparks);
@@ -102,6 +108,7 @@ public partial class Campfire : StaticBody3D, IInteractable
         _smoke.Emitting = Fuel > 0f || _embersGlow > 0.2f;
         _embersGlow = Burning ? 1f : Mathf.Max(0f, _embersGlow - dt / 60f);
         _embers.Emitting = _embersGlow > 0.05f;
+        FillSound(strength);
 
         if (wx != null)
         {
@@ -113,6 +120,36 @@ public partial class Campfire : StaticBody3D, IInteractable
     }
 
     private float _embersGlow = 1f;
+    private AudioStreamPlayer3D _sound;
+    private AudioStreamGeneratorPlayback _pb;
+    private readonly System.Random _arng = new();
+    private float _hiss, _popEnv, _popPhase, _popFreq, _roar;
+
+    private void FillSound(float strength)
+    {
+        if (_pb == null) return;
+        int n = _pb.GetFramesAvailable();
+        if (n <= 0) return;
+        var buf = new Vector2[n];
+        for (int i = 0; i < n; i++)
+        {
+            float w = (float)_arng.NextDouble() * 2f - 1f;
+            _hiss += (w - _hiss) * 0.08f;                       // lavt brus fra flammene
+            _roar = Mathf.Clamp(_roar + w * 0.01f, -1f, 1f) * 0.995f;
+            // Knepp: tilfeldige korte smell med raskt fall
+            if (_arng.NextDouble() < 0.0009 * strength)
+            {
+                _popEnv = 0.5f + (float)_arng.NextDouble() * 0.5f;
+                _popFreq = 800f + (float)_arng.NextDouble() * 2500f;
+            }
+            _popEnv *= 0.993f;
+            _popPhase += _popFreq / 22050f;
+            float pop = (Mathf.Sin(_popPhase * Mathf.Tau) * 0.4f + w * 0.6f) * _popEnv * _popEnv;
+            float s = (_hiss * 0.25f + _roar * 0.35f) * strength + pop * 0.6f * Mathf.Min(strength * 2f, 1f);
+            buf[i] = new Vector2(s, s);
+        }
+        _pb.PushBuffer(buf);
+    }
 
     // ------------------------------------------------------------ Partikler
     private static GradientTexture1D Grad(params (float t, Color c)[] stops)
