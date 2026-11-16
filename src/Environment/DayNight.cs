@@ -1,4 +1,5 @@
 using Godot;
+using Heimskringla.Core;
 using Heimskringla.World;
 
 namespace Heimskringla.Environment;
@@ -98,6 +99,7 @@ public partial class DayNight : Node3D
             AutoExposureMaxSensitivity = 240f,
         };
         AddChild(new WorldEnvironment { Environment = _env, CameraAttributes = _cam });
+        Settings.Changed += ApplyQuality;
 
         _sun = new DirectionalLight3D
         {
@@ -295,6 +297,22 @@ public partial class DayNight : Node3D
         }
         g.Offsets = offs;
         g.Colors = cols;
+    }
+
+    public override void _ExitTree() => Settings.Changed -= ApplyQuality;
+
+    /// <summary>Grafikkvalitet: lav = uten volumetrisk tåke og SSAO, kortere skygger.</summary>
+    private void ApplyQuality()
+    {
+        int q = Settings.Quality;
+        _env.VolumetricFogEnabled = q >= 1 && OS.GetEnvironment("HK_NOVOLFOG") != "1";
+        _env.SsaoEnabled = q >= 1 && OS.GetEnvironment("HK_NOSSAO") != "1";
+        _env.SsaoDetail = q >= 2 ? 0.6f : 0.3f;
+        if (_sun != null)
+        {
+            _sun.DirectionalShadowMaxDistance = q == 0 ? 180f : q == 1 ? 260f : 320f;
+            _sun.DirectionalShadowMode = q == 0 ? DirectionalLight3D.ShadowMode.Parallel2Splits : DirectionalLight3D.ShadowMode.Parallel4Splits;
+        }
     }
 
     public bool ForceAurora;

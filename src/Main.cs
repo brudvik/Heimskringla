@@ -17,12 +17,17 @@ namespace Heimskringla;
 /// </summary>
 public partial class Main : Node3D
 {
-    public static int Seed = 4242;
+    public static int Seed = Settings.DefaultSeed;
     private static bool _loadOnStart;
     private static bool _argsParsed;
+    /// <summary>Menyen er passert (F9/F10 laster rett inn igjen); false = vis hovedmenyen.</summary>
+    private static bool _menuDone;
+    private static bool _introPlayed;
+    private static bool _seedFromArgs;
 
-    private enum State { Generating, Streaming, Playing }
-    private State _state = State.Generating;
+    private enum State { Menu, Generating, Streaming, Playing }
+    private State _state = State.Menu;
+    private PauseMenu _pause;
     private Task<WorldGenerator> _genTask;
     private volatile string _progress = "Starter...";
 
@@ -48,11 +53,11 @@ public partial class Main : Node3D
             _argsParsed = true;
             foreach (var arg in OS.GetCmdlineUserArgs())
             {
-                if (arg.StartsWith("--seed=") && int.TryParse(arg[7..], out int s)) Seed = s;
+                if (arg.StartsWith("--seed=") && int.TryParse(arg[7..], out int s)) { Seed = s; _seedFromArgs = true; }
                 if (arg.StartsWith("--autotest=")) _autoTestDir = arg[11..];
             }
         }
-        if (!_loadOnStart) WorldState.Reset();
+        Settings.Load();
 
         RenderingServer.ViewportSetMeasureRenderTime(GetViewport().GetViewportRid(), true);
         if (_autoTestDir != null)
@@ -66,9 +71,49 @@ public partial class Main : Node3D
         AddChild(_hud);
         _dayNight = new DayNight { Name = "DayNight" };
         AddChild(_dayNight);
+        Settings.Apply();
 
+        if (_autoTestDir != null || _menuDone)
+        {
+            BeginGeneration();
+            return;
+        }
+        // Hovedmeny (med intro første gang)
+        if (!_seedFromArgs) Seed = Settings.LastSeed;
+        _hud.Visible = false;
+        var menu = new MainMenu { SkipIntro = _introPlayed };
+        _introPlayed = true;
+        menu.OnStart = (seed, load) =>
+        {
+            Seed = seed;
+            _loadOnStart = load;
+            _menuDone = true;
+            _hud.Visible = true;
+            BeginGeneration();
+        };
+        AddChild(menu);
+    }
+
+    private void BeginGeneration()
+    {
+        if (!_loadOnStart) WorldState.Reset();
+        _state = State.Generating;
+        _sw.Restart();
         int seed = Seed;
         _genTask = Task.Run(() => WorldGenerator.Generate(seed, s => _progress = s));
+    }
+
+    /// <summary>Lagrer spillet (bål, posisjon, tid, inventar, ferdigheter).</summary>
+    private void SaveGame()
+    {
+        if (_player == null) return;
+        WorldState.Fires.Clear();
+        foreach (var f in Campfire.All)
+            WorldState.Fires.Add(new[] { f.GlobalPosition.X, f.GlobalPosition.Y, f.GlobalPosition.Z, f.Fuel });
+        WorldState.Save(Seed, _player.GlobalPosition, _dayNight.Day + _dayNight.TimeOfDay);
+        Settings.LastSeed = Seed;
+        Settings.Save();
+        _hud.Toast("Spillet er lagret.");
     }
 
     public override void _ExitTree()
@@ -81,6 +126,8 @@ public partial class Main : Node3D
     {
         switch (_state)
         {
+            case State.Menu:
+                return;
             case State.Generating:
                 _hud.SetLoading($"Genererer verden (seed {Seed})\n{_progress}");
                 if (_genTask.IsFaulted)
@@ -213,6 +260,16 @@ public partial class Main : Node3D
             AudioServer.AddBusEffect(0, _rec);
             _rec.SetRecordingActive(true);
         }
+        _pause = new PauseMenu
+        {
+            OnSave = SaveGame,
+            OnMainMenu = () =>
+            {
+                _menuDone = false;
+                GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+            },
+        };
+        AddChild(_pause);
         _state = State.Playing;
     }
 
@@ -223,11 +280,7 @@ public partial class Main : Node3D
         switch (k.PhysicalKeycode)
         {
             case Key.F5:
-                WorldState.Fires.Clear();
-                foreach (var f in Campfire.All)
-                    WorldState.Fires.Add(new[] { f.GlobalPosition.X, f.GlobalPosition.Y, f.GlobalPosition.Z, f.Fuel });
-                WorldState.Save(Seed, _player.GlobalPosition, _dayNight.Day + _dayNight.TimeOfDay);
-                _hud.Toast("Spillet er lagret.");
+                SaveGame();
                 break;
             case Key.F6:
                 _weather.Set((WeatherKind)(((int)_weather.Kind + 1) % 7));

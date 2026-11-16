@@ -45,3 +45,7 @@ Vindopptak fra https://freesound.org, lisens CC0 1.0 (ingen kreditering påkrevd
 - wind_forest.ogg - "windy winter day, wind in trees, from distance.wav" av lwdickens - https://freesound.org/s/259968/
 - wind_strong.ogg - "WINDVege_Macclesfield Forest, Morning, Medium Wind, Trees, Recording 4_JW Audio" av JW_Audio - https://freesound.org/s/819351/
 - wind_open.ogg - "High Mountain.wav" av Proxima4 - https://freesound.org/s/104316/
+
+## assets/fonts/ - Cinzel (SIL Open Font License 1.1)
+
+- Cinzel.ttf - Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel), lisens i OFL-Cinzel.txt

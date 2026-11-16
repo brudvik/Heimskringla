@@ -94,8 +94,9 @@ public partial class Player : CharacterBody3D
         bool captured = Input.MouseMode == Input.MouseModeEnum.Captured;
         if (e is InputEventMouseMotion mm && captured)
         {
-            _yaw -= mm.Relative.X * 0.0025f;
-            _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * 0.0025f, -1.35f, 1.0f);
+            float sens = 0.0025f * Settings.MouseSensitivity;
+            _yaw -= mm.Relative.X * sens;
+            _pitch = Mathf.Clamp(_pitch - mm.Relative.Y * sens, -1.35f, 1.0f);
         }
         else if (e is InputEventMouseButton mb && mb.Pressed)
         {
@@ -113,7 +114,7 @@ public partial class Player : CharacterBody3D
         {
             switch (k.PhysicalKeycode)
             {
-                case Key.Escape: Input.MouseMode = Input.MouseModeEnum.Visible; break;
+                case Key.Escape: break;   // Esc åpner pausemenyen (PauseMenu)
                 case Key.E: TryInteract(); break;
                 case Key.Key1: SetTool(ToolKind.Axe); break;
                 case Key.Key2: SetTool(ToolKind.Pickaxe); break;
@@ -342,7 +343,7 @@ public partial class Player : CharacterBody3D
 
         // FOV øker litt ved sprint
         bool sprint = Input.IsPhysicalKeyPressed(Key.Shift) && !Exhausted && Velocity.Length() > JogSpeed + 0.5f;
-        _camera.Fov = Mathf.Lerp(_camera.Fov, sprint ? 76f : 70f, 1f - Mathf.Exp(-6f * dt));
+        _camera.Fov = Mathf.Lerp(_camera.Fov, Settings.Fov + (sprint ? 6f : 0f), 1f - Mathf.Exp(-6f * dt));
 
         // Kamerarist
         _shake = Mathf.Max(0f, _shake - dt * 1.8f);

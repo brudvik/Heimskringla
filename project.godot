@@ -9,8 +9,8 @@ run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://assets/logo/heimskringla-ikon.png"
 config/windows_native_icon="res://assets/logo/heimskringla.ico"
-boot_splash/bg_color=Color(0.03, 0.03, 0.04, 1)
-boot_splash/image="res://assets/logo/heimskringla-logo.png"
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/show_image=false
 boot_splash/fullsize=false
 boot_splash/use_filter=true
 
