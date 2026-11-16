@@ -31,6 +31,18 @@ public static class WorldTexture
         float size = n * WorldSettings.CellSize;
         float min = -WorldSettings.HalfSize - WorldSettings.CellSize * 0.5f;
         RenderingServer.GlobalShaderParameterSet("world_map", tex);
+
+        // world_masks: r = renner (0..1), g = krumning (0.5 = flatt, >0.5 søkk, <0.5 rygg), b = bergmaske
+        var mdata = new byte[n * n * 4];
+        for (int k = 0; k < n * n; k++)
+        {
+            mdata[k * 4] = (byte)(Mathf.Clamp(w.Gully != null ? w.Gully[k] : 0f, 0f, 1f) * 255f);
+            mdata[k * 4 + 1] = (byte)(Mathf.Clamp(0.5f + (w.Curv != null ? w.Curv[k] : 0f) / 24f, 0f, 1f) * 255f);
+            mdata[k * 4 + 2] = (byte)(Mathf.Clamp(w.Rock != null ? w.Rock[k] : 0f, 0f, 1f) * 255f);
+            mdata[k * 4 + 3] = 255;
+        }
+        var mimg = Image.CreateFromData(n, n, false, Image.Format.Rgba8, mdata);
+        RenderingServer.GlobalShaderParameterSet("world_masks", ImageTexture.CreateFromImage(mimg));
         RenderingServer.GlobalShaderParameterSet("world_rect", new Vector4(min, min, 1f / size, 1f / size));
     }
 }

@@ -116,3 +116,7 @@ detail_nrao={
 "type": "sampler2DArray",
 "value": ""
 }
+world_masks={
+"type": "sampler2D",
+"value": ""
+}

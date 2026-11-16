@@ -13,6 +13,7 @@ global uniform float snow_line;      // årstidssnø: temperatur snøen går ned
 global uniform float wetness;        // 0..1, regn
 global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
+global uniform sampler2D world_masks : filter_linear;   // r = renner, g = krumning (0.5 flatt, > søkk), b = berg
 
 // Teksturlag (ambientCG, se scripts/fetch_terrain_textures.py). Skive i = lag i:
 // 0 eng, 1 lauvskogbunn, 2 barskogbunn/sti, 3 lynghei/myr/jord, 4 berg, 5 ur/grus, 6 sand, 7 snø.
@@ -128,8 +129,8 @@ float tri_cracks(vec3 p, vec3 w, float s) {
 }
 
 // Ett teksturlag: plant (xz) eller triplanart. Gir farge+høyde, normalforskyvning i verdensrom og ruhet/AO.
-void layer_sample(int i, vec3 p, vec3 tw, bool tri, vec2 warp, out vec4 a, out vec3 off, out vec2 ra) {
-	float s = 1.0 / TILE[i];
+void layer_sample(int i, vec3 p, vec3 tw, bool tri, vec2 warp, float smul, out vec4 a, out vec3 off, out vec2 ra) {
+	float s = smul / TILE[i];
 	float li = float(i);
 	if (!tri) {
 		// Mot repetisjon: to prøver med ulik rotasjon/skala/forskyvning, blandet med lavfrekvent
@@ -224,8 +225,16 @@ void fragment() {
 	float macro = tri_vnoise(world_pos, tw, 0.0025) * 0.6 + tri_vnoise(world_pos, tw, 0.006) * 0.4;
 	rock_col *= mix(0.78, 1.18, macro);
 	// Mørke vannsig nedover stupene (uregelmessige, ikke et kamstriper-mønster)
-	float seep = vnoise(vec2(dot(world_pos.xz, vec2(0.7, 0.7)) * 0.09, world_pos.y * 0.006));
-	rock_col *= 1.0 - smoothstep(0.7, 0.9, seep) * 0.25 * smoothstep(0.75, 0.95, steep);
+	// Masker fra verdensgenereringen: renner (der vann samles), søkk og rygger
+	vec4 wm = texture(world_masks, (world_pos.xz - world_rect.xy) * world_rect.zw);
+	float m_gully = smoothstep(0.45, 0.85, wm.r + (fine - 0.5) * 0.1);
+	float m_hollow = smoothstep(0.52, 0.7, wm.g), m_ridge = smoothstep(0.48, 0.3, wm.g);
+	// Våte, mørke striper der vannet renner ned stupene
+	float streak = m_gully * smoothstep(0.4, 0.75, vnoise(vec2(dot(world_pos.xz, vec2(0.7, -0.7)) * 0.35, world_pos.y * 0.02)));
+	rock_col *= 1.0 - streak * 0.35 * smoothstep(0.5, 0.9, steep);
+	// Rygger og kanter: lysere, eksponert berg; søkk: mørkere og grønnere (mose, fukt)
+	rock_col *= 1.0 + m_ridge * 0.15;
+	rock_col = mix(rock_col, rock_col * vec3(0.75, 0.88, 0.62), m_hollow * 0.45);
 	// Gul/oransje kartlav i flekker på berg som vender mot sola (sør, +Z) og ikke er for bratt
 	float lichen = smoothstep(0.62, 0.78, tri_vnoise(world_pos, tw, 0.35)) * smoothstep(0.2, 0.8, n.z * 0.5 + 0.5) * smoothstep(0.2, 0.6, n.y + 0.3) * near;
 	rock_col = mix(rock_col, rock_col * vec3(1.35, 1.1, 0.55), lichen * 0.45);
@@ -241,6 +250,8 @@ void fragment() {
 	float sat = max(base.r, max(base.g, base.b)) - min(base.r, min(base.g, base.b));
 	float grey = smoothstep(0.06, 0.02, sat) * smoothstep(0.75, 0.5, base.g);   // stein (ikke snø)
 	col = mix(col, rock_col, max(steep, grey));
+	col = mix(col, col * vec3(0.85, 0.95, 0.8), m_hollow * (1.0 - steep) * 0.35);
+	col = mix(col, col * vec3(1.1, 1.05, 0.85), m_ridge * (1.0 - steep) * 0.3);
 
 	// --- Ekte teksturer nært: høydeblanding mellom lagene, brukt som detalj rundt sonefargen
 	vec3 tex_off = vec3(0.0);
@@ -248,6 +259,10 @@ void fragment() {
 	vec2 warp = vec2(vnoise(world_pos.xz * 0.05), vnoise(world_pos.xz * 0.05 + 71.0)) * 0.35;
 	if (tf > 0.001) {
 		float wts[8] = { lw0.x, lw0.y, lw0.z, lw0.w, lw1.x, lw1.y, lw1.z, lw1.w };
+		// Ur og grus samler seg i rennene nedenfor stupene
+		wts[5] += m_gully * wm.b * smoothstep(0.55, 0.8, n.y) * 0.8;
+		// Grovere teksturskala på mellomavstand (samme materiale, ingen fin "kornete" gjentakelse)
+		float coarse = smoothstep(35.0, 75.0, dist);
 		bool tri = n.y < 0.75;
 		vec4 sa[8];
 		vec3 so[8];
@@ -257,7 +272,13 @@ void fragment() {
 		for (int i = 0; i < 8; i++) {
 			sc[i] = -1.0;
 			if (wts[i] > 0.03) {
-				layer_sample(i, world_pos, tw, tri, warp, sa[i], so[i], sr[i]);
+				if (coarse < 0.999) layer_sample(i, world_pos, tw, tri, warp, 1.0, sa[i], so[i], sr[i]);
+				if (coarse > 0.001) {
+					vec4 ca; vec3 co; vec2 cr;
+					layer_sample(i, world_pos, tw, tri, warp + 0.5, 0.3, ca, co, cr);
+					if (coarse >= 0.999) { sa[i] = ca; so[i] = co; sr[i] = cr; }
+					else { sa[i] = mix(sa[i], ca, coarse); so[i] = mix(so[i], co, coarse); sr[i] = mix(sr[i], cr, coarse); }
+				}
 				sc[i] = wts[i] + sa[i].a * 0.6;
 				best = max(best, sc[i]);
 			}
@@ -286,14 +307,14 @@ void fragment() {
 	float snow = smoothstep(temp - 0.03, temp + 0.03, snow_line + edge);
 	snow *= smoothstep(0.6, 0.8, n.y) * smoothstep(0.2, 0.8, world_pos.y);
 	// Snøfonner i renner og søkk høyt til fjells (ligger igjen hele sommeren)
-	float concave = smoothstep(0.92, 0.7, ao);
+	float concave = max(smoothstep(0.92, 0.7, ao), m_hollow);
 	float alt = smoothstep(135.0, 185.0, world_pos.y + (vnoise(world_pos.xz * 0.02) - 0.5) * 40.0);
 	float gully = alt * concave * smoothstep(0.35, 0.55, n.y) * smoothstep(0.55, 0.35, temp + snow_line * 0.3 - 0.1);
 	snow = max(snow, smoothstep(0.25, 0.55, gully + (fine - 0.5) * 0.2));
 	vec3 snow_col = vec3(0.80, 0.83, 0.90) * (0.92 + fine * 0.12);
 	if (snow > 0.01 && tf > 0.001) {
 		vec4 sa7; vec3 so7; vec2 sr7;
-		layer_sample(7, world_pos, tw, false, warp, sa7, so7, sr7);
+		layer_sample(7, world_pos, tw, false, warp, 1.0, sa7, so7, sr7);
 		snow_col *= mix(vec3(1.0), clamp(sa7.rgb / max(layer_mean[7], vec3(0.004)), vec3(0.5), vec3(1.5)), tf);
 		tex_off = mix(tex_off, so7 * tf, snow);
 	}

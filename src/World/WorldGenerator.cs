@@ -50,6 +50,8 @@ public sealed class WorldGenerator
 
     private readonly FastNoiseLite _warp, _cont, _hill, _mmask, _ridge, _temp, _moist;
     private readonly FastNoiseLite _detail, _detailFine, _border, _color, _trail, _crag, _strata, _style, _plateau;
+    public float[] Gully;      // 0..1: renner der vann samles (også små, under elvegrensen)
+    public float[] Curv;       // krumning: + = søkk/forsenkning, - = rygg/kant (meter)
     public float[] Rock;       // 0..1: hvor mye fjell/berg det er her (styrer steinlag, klipper og farge)
 
     private WorldGenerator(int seed)
@@ -316,6 +318,15 @@ public sealed class WorldGenerator
             rock[k] = r;
         }
         Rock = BoxBlur(BoxBlur(rock, 1), 1);
+
+        // Masker fra terrengformen til shaderne (renner, søkk og rygger)
+        var gully = new float[count];
+        for (int k = 0; k < count; k++)
+            gully[k] = Math.Clamp(MathF.Log2(MathF.Max(acc[k], 1f)) / MathF.Log2(WorldSettings.RiverThreshold), 0f, 1f);
+        Gully = BoxBlur(gully, 1);
+        var blur = BoxBlur(BoxBlur(Height, 3), 3);
+        Curv = new float[count];
+        for (int k = 0; k < count; k++) Curv[k] = blur[k] - Height[k];
         Step("Bergmaske");
 
         progress("Tegner verdenskart...");
