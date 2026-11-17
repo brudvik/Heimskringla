@@ -35,7 +35,7 @@ public partial class Main : Node3D
     private float _cineT, _cineH;
     private Vector3 _cineCenter;
     private Task<WorldGenerator> _genTask;
-    private volatile string _progress = "Starter...";
+    private volatile string _progress;
 
     private TerrainManager _terrain;
     private CollisionManager _collision;
@@ -64,6 +64,8 @@ public partial class Main : Node3D
             }
         }
         Settings.Load();
+        Loc.Apply(Settings.Language);
+        _progress = Loc.T("LOADING_STARTING");
 
         RenderingServer.ViewportSetMeasureRenderTime(GetViewport().GetViewportRid(), true);
         if (_autoTestDir != null)
@@ -195,7 +197,7 @@ public partial class Main : Node3D
         WorldState.Save(Seed, _player.GlobalPosition, _dayNight.Day + _dayNight.TimeOfDay);
         Settings.LastSeed = Seed;
         Settings.Save();
-        _hud.Toast("Spillet er lagret.");
+        _hud.Toast(Loc.T("TOAST_SAVED"));
     }
 
     public override void _ExitTree()
@@ -218,10 +220,10 @@ public partial class Main : Node3D
                     _menu.WorldReady = true;
                 break;
             case State.Generating:
-                if (!_menuFly) _hud.SetLoading($"Genererer verden (seed {Seed})\n{_progress}");
+                if (!_menuFly) _hud.SetLoading(Loc.F("LOADING_GENERATING", Seed) + "\n" + _progress);
                 if (_genTask.IsFaulted)
                 {
-                    _hud.SetLoading("Feil under generering:\n" + _genTask.Exception?.InnerException?.Message);
+                    _hud.SetLoading(Loc.T("LOADING_ERROR") + "\n" + _genTask.Exception?.InnerException?.Message);
                     GD.PushError(_genTask.Exception?.ToString());
                     _state = State.Playing;
                     return;
@@ -238,7 +240,7 @@ public partial class Main : Node3D
                 _streamTime += (float)delta;
                 Game.Focus = _spawn;
                 Game.Jobs.ProcessCompleted(14.0);
-                _hud.SetLoading($"Laster terreng rundt startpunktet... ({Game.Jobs.PendingCount} jobber igjen)");
+                _hud.SetLoading(Loc.F("LOADING_TERRAIN", Game.Jobs.PendingCount));
                 if ((_terrain.IsAreaReady(_spawn, 200f) && _collision.IsReadyAt(_spawn) && _streamTime > 0.5f) || _streamTime > 25f)
                     SpawnPlayer();
                 break;
@@ -347,8 +349,8 @@ public partial class Main : Node3D
         _hud.Map.PlayerYaw = () => _player.Camera.GlobalRotation.Y;
         _hud.Map.OnTeleport = (x, z) => _player.Teleport(x, z);
         _hud.SetLoading(null);
-        _hud.Toast($"Velkommen til Heimskringla! Verden generert på {_genSeconds:F1} s.");
-        if (_loadedTime.HasValue) _hud.Toast("Lagret spill lastet.");
+        _hud.Toast(Loc.F("TOAST_WELCOME", _genSeconds));
+        if (_loadedTime.HasValue) _hud.Toast(Loc.T("TOAST_LOADED"));
         foreach (var f in WorldState.Fires)
         {
             var fire = new Campfire { Fuel = f[3] };
@@ -387,14 +389,14 @@ public partial class Main : Node3D
                 break;
             case Key.F6:
                 _weather.Set((WeatherKind)(((int)_weather.Kind + 1) % 7));
-                _hud.Toast($"Været skifter: {_weather.Description}");
+                _hud.Toast(Loc.F("TOAST_WEATHER_CHANGES", _weather.Description));
                 break;
             case Key.F7:
                 _dayNight.Day += Weather.DaysPerSeason;
-                _hud.Toast($"Årstid: {_weather.SeasonName}");
+                _hud.Toast(Loc.F("TOAST_SEASON", _weather.SeasonName));
                 break;
             case Key.F9:
-                if (!WorldState.Exists(Seed)) { _hud.Toast("Ingen lagring funnet for denne verdenen."); break; }
+                if (!WorldState.Exists(Seed)) { _hud.Toast(Loc.T("TOAST_NO_SAVE")); break; }
                 _loadOnStart = true;
                 GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
                 break;
@@ -814,22 +816,22 @@ public partial class Main : Node3D
         float h = w.GetHeight(p.X, p.Z);
         int hours = (int)(_dayNight.TimeOfDay * 24f), mins = (int)((_dayNight.TimeOfDay * 24f - hours) * 60f);
         return
-            $"FPS {Engine.GetFramesPerSecond():F0}  (prosess {Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000:F1} ms · " +
-            $"fysikk {Performance.GetMonitor(Performance.Monitor.TimePhysicsProcess) * 1000:F1} ms)\n" +
+            $"FPS {Engine.GetFramesPerSecond():F0}  (process {Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000:F1} ms · " +
+            $"physics {Performance.GetMonitor(Performance.Monitor.TimePhysicsProcess) * 1000:F1} ms)\n" +
             $"Render CPU {RenderingServer.ViewportGetMeasuredRenderTimeCpu(GetViewport().GetViewportRid()):F1} ms · " +
             $"GPU {RenderingServer.ViewportGetMeasuredRenderTimeGpu(GetViewport().GetViewportRid()):F1} ms\n" +
             $"Draw calls {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0} · " +
-            $"trekanter {Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1000:F0}k\n" +
+            $"triangles {Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1000:F0}k\n" +
             $"VRAM {Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576:F0} MB · " +
             $"RAM {Performance.GetMonitor(Performance.Monitor.MemoryStatic) / 1048576:F0} MB (+.NET {GC.GetTotalMemory(false) / 1048576} MB)\n" +
-            $"Terreng: {_terrain.ChunkCount} chunks ({_terrain.PendingCount} venter)\n" +
-            $"Vegetasjon: {_vegetation.CellCount} celler, {_vegetation.InstanceCount} obj, {_vegetation.PromotedCount} aktive\n" +
-            $"Gress: {_grass.CellCount} celler · Kollisjon: {_collision.BodyCount}\n" +
-            $"Jobber: {Game.Jobs.PendingCount} i kø, {Game.Jobs.RunningCount} kjører\n" +
-            $"Pos {p.X:F0}, {p.Y:F1}, {p.Z:F0}  (bakke {h:F1} m)\n" +
-            $"Sone: {Biomes.Name(w.GetBiome(p.X, p.Z))} · temp {w.GetTemp(p.X, p.Z):F2} · fukt {w.GetMoist(p.X, p.Z):F2}\n" +
-            $"{_weather.SeasonName}, dag {_weather.DayOfSeason} · {_weather.Description} · vind {_weather.Wind * 20f:F0} m/s" +
-            (_dayNight.Aurora > 0.05f ? " · nordlys" : "") + "\n" +
-            $"Seed {Seed} · Klokka {hours:D2}:{mins:D2}" + (_player?.Flying == true ? " · FLYR" : "") + (_player?.Swimming == true ? " · SVØMMER" : "");
+            $"Terrain: {_terrain.ChunkCount} chunks ({_terrain.PendingCount} pending)\n" +
+            $"Vegetation: {_vegetation.CellCount} cells, {_vegetation.InstanceCount} obj, {_vegetation.PromotedCount} active\n" +
+            $"Grass: {_grass.CellCount} cells · Collision: {_collision.BodyCount}\n" +
+            $"Jobs: {Game.Jobs.PendingCount} queued, {Game.Jobs.RunningCount} running\n" +
+            $"Pos {p.X:F0}, {p.Y:F1}, {p.Z:F0}  (ground {h:F1} m)\n" +
+            $"Zone: {Biomes.Name(w.GetBiome(p.X, p.Z))} · temp {w.GetTemp(p.X, p.Z):F2} · moisture {w.GetMoist(p.X, p.Z):F2}\n" +
+            $"{_weather.SeasonName}, day {_weather.DayOfSeason} · {_weather.Description} · wind {_weather.Wind * 20f:F0} m/s" +
+            (_dayNight.Aurora > 0.05f ? " · aurora" : "") + "\n" +
+            $"Seed {Seed} · Time {hours:D2}:{mins:D2}" + (_player?.Flying == true ? " · FLYING" : "") + (_player?.Swimming == true ? " · SWIMMING" : "");
     }
 }

@@ -39,7 +39,7 @@ public static class WorldState
     public static readonly HashSet<long> Removed = new();
     /// <summary>Campfires: x, y, z, wood remaining (s). Filled on load, read on save.</summary>
     public static readonly List<float[]> Fires = new();
-    /// <summary>Skills (0..100), e.g. "Hogging". Increase a little each time they are used.</summary>
+    /// <summary>Skills (0..100), e.g. "woodcutting". Increase a little each time they are used.</summary>
     public static readonly Dictionary<string, float> Skills = new();
 
     public static float Skill(string name) => Skills.TryGetValue(name, out float v) ? v : 0f;
@@ -95,14 +95,35 @@ public static class WorldState
         foreach (var id in data.Removed ?? Array.Empty<long>()) Removed.Add(id);
         Inventory.Items.Clear();
         if (data.Inventory != null)
-            foreach (var kv in data.Inventory) Inventory.Items[kv.Key] = kv.Value;
+            foreach (var kv in data.Inventory)
+            {
+                string id = MigrateKey(kv.Key);
+                Inventory.Items.TryGetValue(id, out int cur);
+                Inventory.Items[id] = cur + kv.Value;
+            }
         Inventory.Add("", 0);
         Fires.Clear();
         if (data.Fires != null) Fires.AddRange(data.Fires);
         Skills.Clear();
-        if (data.Skills != null) foreach (var kv in data.Skills) Skills[kv.Key] = kv.Value;
+        if (data.Skills != null)
+            foreach (var kv in data.Skills)
+            {
+                string id = MigrateKey(kv.Key);
+                Skills[id] = Skills.TryGetValue(id, out float cur) ? Math.Max(cur, kv.Value) : kv.Value;
+            }
         return (new Vector3(data.Player[0], data.Player[1], data.Player[2]), data.TimeOfDay);
     }
+
+    /// <summary>Maps item/skill keys from older saves (Norwegian names) to the current English ids.</summary>
+    private static string MigrateKey(string key) => key switch
+    {
+        "Tømmer" => "wood",
+        "Grein" => "branch",
+        "Stein" => "stone",
+        "Sopp" => "mushroom",
+        "Hogging" => "woodcutting",
+        _ => key,
+    };
 
     public static void Reset()
     {

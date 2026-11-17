@@ -6,3 +6,4 @@ tools/
 *.user
 saves/
 build/
+*.translation

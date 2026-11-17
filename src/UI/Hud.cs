@@ -18,7 +18,8 @@ public partial class Hud : CanvasLayer
     private static readonly Color Gold = new(0.86f, 0.70f, 0.40f);
     private static readonly Color PanelBg = new(0.07f, 0.06f, 0.05f, 0.62f);
 
-    private Label _prompt, _debug, _loading, _help, _targetName;
+    private Label _prompt, _debug, _loading, _help, _targetName, _invTitle;
+    private string _lang;
     private ColorRect _loadingShade;
     private TextureRect _loadingBg;
     private TextureRect _logo;
@@ -38,25 +39,33 @@ public partial class Hud : CanvasLayer
     public bool MapOpen => Map.Visible;
     public bool DebugVisible => _debug.Visible;
 
-    /// <summary>The mesh used as the icon for each resource/tool.</summary>
+    /// <summary>The mesh used as the icon for each resource/tool (keyed by item id / tool id).</summary>
     private static Mesh IconMesh(string key) => key switch
     {
-        "Tømmer" => PropLibrary.Defs?[(int)PropKind.Log].Variants[0].Mesh,
-        "Grein" => PropLibrary.Defs?[(int)PropKind.Branch].Variants[0].Mesh,
-        "Stein" => PropLibrary.Defs?[(int)PropKind.Stone].Variants[0].Mesh,
-        "Sopp" => PropLibrary.Defs?[(int)PropKind.Mushroom].Variants[0].Mesh,
-        "Øks" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-axe.glb")),
-        "Hakke" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-pickaxe.glb")),
+        "wood" => PropLibrary.Defs?[(int)PropKind.Log].Variants[0].Mesh,
+        "branch" => PropLibrary.Defs?[(int)PropKind.Branch].Variants[0].Mesh,
+        "stone" => PropLibrary.Defs?[(int)PropKind.Stone].Variants[0].Mesh,
+        "mushroom" => PropLibrary.Defs?[(int)PropKind.Mushroom].Variants[0].Mesh,
+        "axe" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-axe.glb")),
+        "pickaxe" => Gameplay.CharacterModel.ToolMesh(ModelLibrary.LoadMesh("res://assets/survival/tool-pickaxe.glb")),
         _ => null,
     };
 
     private static Vector3 IconRotation(string key) => key switch
     {
-        "Tømmer" => new Vector3(0, 35, 0),
-        "Grein" => new Vector3(0, 30, 0),
-        "Øks" or "Hakke" => new Vector3(0, 0, -35),
+        "wood" => new Vector3(0, 35, 0),
+        "branch" => new Vector3(0, 30, 0),
+        "axe" or "pickaxe" => new Vector3(0, 0, -35),
         _ => new Vector3(15, 30, 0),
     };
+
+    /// <summary>Display name of an inventory item id ("wood" -> ITEM_WOOD).</summary>
+    private static string ItemName(string id) => Loc.T("ITEM_" + id.ToUpperInvariant());
+
+    /// <summary>Display name of a hotbar tool id ("axe" -> TOOL_AXE).</summary>
+    private static string ToolName(string id) => Loc.T("TOOL_" + id.ToUpperInvariant());
+
+    private const int HelpLines = 8;
 
     public override void _Ready()
     {
@@ -121,10 +130,9 @@ public partial class Hud : CanvasLayer
         _invPanel.OffsetLeft = 16; _invPanel.OffsetBottom = -16; _invPanel.OffsetTop = -16; _invPanel.OffsetRight = 16;
         _invPanel.GrowVertical = Control.GrowDirection.Begin;
         var invBox = new VBoxContainer();
-        var invTitle = MakeLabel(14, HorizontalAlignment.Left);
-        invTitle.Text = "INVENTAR";
-        invTitle.AddThemeColorOverride("font_color", Gold);
-        invBox.AddChild(invTitle);
+        _invTitle = MakeLabel(14, HorizontalAlignment.Left);
+        _invTitle.AddThemeColorOverride("font_color", Gold);
+        invBox.AddChild(_invTitle);
         _inventory = new GridContainer { Columns = 4 };
         _inventory.AddThemeConstantOverride("h_separation", 6);
         _inventory.AddThemeConstantOverride("v_separation", 6);
@@ -151,15 +159,6 @@ public partial class Hud : CanvasLayer
         helpPanel.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
         helpPanel.OffsetLeft = 14; helpPanel.OffsetTop = 12;
         _help = MakeLabel(14, HorizontalAlignment.Left);
-        _help.Text =
-            "HEIMSKRINGLA  ·  spill-test        F1 skjul\n" +
-            "WASD gå · Shift løp · Alt rolig · Space hopp\n" +
-            "Mus se · Hjul zoom · Venstre mus: hugg/hakk\n" +
-            "E plukk opp · 1 Øks · 2 Hakke · 3 Hender\n" +
-            "B bygg bål (3 greiner + 5 stein)\n" +
-            "M kart · F fly (Ctrl ned) · T spol tid\n" +
-            "F3 debug · F5 lagre · F9 last · F10 ny verden\n" +
-            "F6 skift vær · F7 neste årstid";
         helpPanel.AddChild(_help);
         AddChild(helpPanel);
         _help = MakeHelpToggle(helpPanel);
@@ -207,8 +206,28 @@ public partial class Hud : CanvasLayer
 
         Inventory.Changed += RefreshInventory;
         Inventory.ItemAdded += OnItemAdded;
+        Settings.Changed += OnSettingsChanged;
+        RefreshTexts();
         RefreshInventory();
         RefreshHotbar(ToolKind.Axe);
+    }
+
+    /// <summary>The language changed in the settings: update the HUD texts.</summary>
+    private void OnSettingsChanged()
+    {
+        if (_lang == Loc.Current) return;
+        RefreshTexts();
+        RefreshInventory();
+        RefreshHotbar(_tool);
+    }
+
+    private void RefreshTexts()
+    {
+        _lang = Loc.Current;
+        _invTitle.Text = Loc.T("HUD_INVENTORY");
+        var lines = new string[HelpLines];
+        for (int i = 0; i < HelpLines; i++) lines[i] = Loc.T($"HELP_LINE_{i + 1}");
+        _help.Text = string.Join("\n", lines);
     }
 
     private Control _helpPanel;
@@ -221,7 +240,7 @@ public partial class Hud : CanvasLayer
     /// <summary>Called when PropLibrary is ready, so the icons can be rendered.</summary>
     public void RequestIcons()
     {
-        foreach (var key in new[] { "Tømmer", "Grein", "Stein", "Sopp", "Øks", "Hakke" })
+        foreach (var key in new[] { "wood", "branch", "stone", "mushroom", "axe", "pickaxe" })
             _icons.Request(key, IconMesh(key), IconRotation(key));
     }
 
@@ -229,6 +248,7 @@ public partial class Hud : CanvasLayer
     {
         Inventory.Changed -= RefreshInventory;
         Inventory.ItemAdded -= OnItemAdded;
+        Settings.Changed -= OnSettingsChanged;
         if (Instance == this) Instance = null;
     }
 
@@ -307,13 +327,13 @@ public partial class Hud : CanvasLayer
         else
         {
             var ph = MakeLabel(12, HorizontalAlignment.Center);
-            ph.Text = item;
+            ph.Text = ItemName(item);
             ph.CustomMinimumSize = new Vector2(iconSize, iconSize);
             ph.VerticalAlignment = VerticalAlignment.Center;
             box.AddChild(ph);
         }
         var lbl = MakeLabel(13, HorizontalAlignment.Center);
-        lbl.Text = count >= 0 ? $"{item} {count}" : item;
+        lbl.Text = count >= 0 ? $"{ItemName(item)} {count}" : ItemName(item);
         box.AddChild(lbl);
         return box;
     }
@@ -360,7 +380,7 @@ public partial class Hud : CanvasLayer
     {
         _tool = t;
         if (_slots.Count == 0) return;
-        string[] names = { "Øks", "Hakke", "Hender" };
+        string[] ids = { "axe", "pickaxe", "hands" };
         ToolKind[] kinds = { ToolKind.Axe, ToolKind.Pickaxe, ToolKind.Hands };
         for (int i = 0; i < 3; i++)
         {
@@ -374,12 +394,12 @@ public partial class Hud : CanvasLayer
             num.Text = (i + 1).ToString();
             num.AddThemeColorOverride("font_color", Gold);
             box.AddChild(num);
-            if (_icons.Icons.TryGetValue(names[i], out var tex))
+            if (_icons.Icons.TryGetValue(ids[i], out var tex))
                 box.AddChild(new TextureRect { Texture = tex, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(48, 44), MouseFilter = Control.MouseFilterEnum.Ignore });
             else
             {
                 var l = MakeLabel(13, HorizontalAlignment.Center);
-                l.Text = names[i];
+                l.Text = ToolName(ids[i]);
                 l.CustomMinimumSize = new Vector2(48, 44);
                 l.VerticalAlignment = VerticalAlignment.Center;
                 box.AddChild(l);
@@ -404,7 +424,7 @@ public partial class Hud : CanvasLayer
         if (_icons.Icons.TryGetValue(item, out var tex))
             h.AddChild(new TextureRect { Texture = tex, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered, CustomMinimumSize = new Vector2(30, 30), MouseFilter = Control.MouseFilterEnum.Ignore });
         var l = MakeLabel(16, HorizontalAlignment.Right);
-        l.Text = $"+{count} {item}";
+        l.Text = $"+{count} {ItemName(item)}";
         l.VerticalAlignment = VerticalAlignment.Center;
         h.AddChild(l);
         row.AddChild(h);
@@ -434,6 +454,24 @@ public partial class Compass : Control
 {
     public float Heading;   // radians, 0 = north, clockwise
 
+    private static readonly string[] Keys = { "HUD_COMPASS_N", "HUD_COMPASS_NE", "HUD_COMPASS_E", "HUD_COMPASS_SE", "HUD_COMPASS_S", "HUD_COMPASS_SW", "HUD_COMPASS_W", "HUD_COMPASS_NW" };
+    private string[] _names;
+    private string _lang;
+
+    /// <summary>Localized direction labels, looked up again when the language changes.</summary>
+    private string[] Names
+    {
+        get
+        {
+            if (_names == null || _lang != Loc.Current)
+            {
+                _lang = Loc.Current;
+                _names = System.Array.ConvertAll(Keys, Loc.T);
+            }
+            return _names;
+        }
+    }
+
     public override void _Process(double delta) => QueueRedraw();
 
     public override void _Draw()
@@ -448,7 +486,7 @@ public partial class Compass : Control
         DrawStyleBox(bg, new Rect2(Vector2.Zero, size));
         float headingDeg = Mathf.RadToDeg(Heading);
         const float span = 150f;   // degrees visible
-        string[] names = { "N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV" };
+        string[] names = Names;
         for (int d = -180; d <= 540; d += 15)
         {
             float rel = Mathf.Wrap(d - headingDeg, -180f, 180f);

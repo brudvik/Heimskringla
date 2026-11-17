@@ -32,7 +32,9 @@ public partial class MainMenu : CanvasLayer
     private VBoxContainer _menu;
     private SettingsPanel _settings;
     private LineEdit _seedEdit;
-    private Button _continue;
+    private Button _continue, _newGame, _random, _default, _settingsButton, _quit;
+    private Label _worldLabel;
+    private string _lang;
     private CpuParticles2D _snow;
     private float _t, _live, _sweepT = -1f, _nextSweep;
     private bool _menuShown, _leaving;
@@ -48,6 +50,8 @@ public partial class MainMenu : CanvasLayer
         Layer = 50;
         ProcessMode = ProcessModeEnum.Always;
         Settings.Load();
+        Loc.Apply(Settings.Language);
+        _lang = Loc.Current;
         MenuSound.Attach(this);
 
         _root = new Control { MouseFilter = Control.MouseFilterEnum.Stop };
@@ -97,7 +101,7 @@ public partial class MainMenu : CanvasLayer
         pres.AddThemeConstantOverride("separation", 6);
         _root.AddChild(pres);
         _presentsName = MenuUi.Label("Kjell Arne Brudvik", 46, MenuUi.GoldBright, MenuUi.Title);
-        _presents = MenuUi.Label("presenterer", 22, MenuUi.TextDim);
+        _presents = MenuUi.Label(Loc.T("INTRO_PRESENTS"), 22, MenuUi.TextDim);
         _presentsName.Modulate = _presents.Modulate = new Color(1, 1, 1, 0);
         pres.AddChild(_presentsName);
         pres.AddChild(_presents);
@@ -115,7 +119,7 @@ public partial class MainMenu : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _root.AddChild(_logo);
-        _tagline = MenuUi.Label("En saga fra Norden", 24, MenuUi.Gold);
+        _tagline = MenuUi.Label(Loc.T("MENU_TAGLINE"), 24, MenuUi.Gold);
         _tagline.Modulate = new Color(1, 1, 1, 0);
         _root.AddChild(_tagline);
 
@@ -127,11 +131,11 @@ public partial class MainMenu : CanvasLayer
         _settings = new SettingsPanel { Visible = false, OnBack = ShowMainButtons };
         _root.AddChild(_settings);
 
-        _credit = MenuUi.Label("Utviklet av Kjell Arne Brudvik", 18, MenuUi.TextDim);
+        _credit = MenuUi.Label(Loc.T("MENU_CREDIT"), 18, MenuUi.TextDim);
         _credit.HorizontalAlignment = HorizontalAlignment.Left;
         _credit.Modulate = new Color(1, 1, 1, 0);
         _root.AddChild(_credit);
-        _version = MenuUi.Label("tidlig utviklingsversjon", 13, new Color(MenuUi.TextDim, 0.6f));
+        _version = MenuUi.Label(Loc.T("MENU_VERSION"), 13, new Color(MenuUi.TextDim, 0.6f));
         _version.Modulate = new Color(1, 1, 1, 0);
         _root.AddChild(_version);
 
@@ -163,15 +167,17 @@ public partial class MainMenu : CanvasLayer
 
     private void BuildMenu()
     {
-        _continue = MenuUi.Button("Fortsett", 32, () => Start(true), left: true);
+        _continue = MenuUi.Button(Loc.T("MENU_CONTINUE"), 32, () => Start(true), left: true);
         _menu.AddChild(_continue);
-        _menu.AddChild(MenuUi.Button("Nytt spill", 32, () => Start(false), left: true));
+        _newGame = MenuUi.Button(Loc.T("MENU_NEW_GAME"), 32, () => Start(false), left: true);
+        _menu.AddChild(_newGame);
 
         // World/seed
         var seedRow = new HBoxContainer();
         seedRow.AddThemeConstantOverride("separation", 10);
         seedRow.AddChild(new Control { CustomMinimumSize = new Vector2(22, 0) });
-        seedRow.AddChild(MenuUi.Label("Verden", 20, MenuUi.Gold));
+        _worldLabel = MenuUi.Label(Loc.T("MENU_WORLD"), 20, MenuUi.Gold);
+        seedRow.AddChild(_worldLabel);
         _seedEdit = new LineEdit { Text = Settings.LastSeed.ToString(), CustomMinimumSize = new Vector2(130, 0), Alignment = HorizontalAlignment.Center, MaxLength = 9 };
         MenuUi.StyleInput(_seedEdit);
         _seedEdit.TextChanged += txt =>
@@ -182,18 +188,41 @@ public partial class MainMenu : CanvasLayer
             UpdateContinue();
         };
         seedRow.AddChild(_seedEdit);
-        var dice = MenuUi.Button("Tilfeldig", 18, () => { _seedEdit.Text = ((int)(GD.Randi() % 1000000)).ToString(); UpdateContinue(); });
+        var dice = _random = MenuUi.Button(Loc.T("MENU_RANDOM"), 18, () => { _seedEdit.Text = ((int)(GD.Randi() % 1000000)).ToString(); UpdateContinue(); });
         dice.CustomMinimumSize = new Vector2(110, 32);
         seedRow.AddChild(dice);
-        var std = MenuUi.Button("Standard", 18, () => { _seedEdit.Text = Settings.DefaultSeed.ToString(); UpdateContinue(); });
+        var std = _default = MenuUi.Button(Loc.T("MENU_DEFAULT"), 18, () => { _seedEdit.Text = Settings.DefaultSeed.ToString(); UpdateContinue(); });
         std.CustomMinimumSize = new Vector2(110, 32);
         seedRow.AddChild(std);
         _menu.AddChild(seedRow);
         _menu.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
 
-        _menu.AddChild(MenuUi.Button("Innstillinger", 32, ShowSettings, left: true));
-        _menu.AddChild(MenuUi.Button("Avslutt", 32, () => GetTree().Quit(), left: true));
+        _settingsButton = MenuUi.Button(Loc.T("MENU_SETTINGS"), 32, ShowSettings, left: true);
+        _menu.AddChild(_settingsButton);
+        _quit = MenuUi.Button(Loc.T("MENU_QUIT"), 32, () => GetTree().Quit(), left: true);
+        _menu.AddChild(_quit);
         UpdateContinue();
+    }
+
+    public override void _EnterTree() => Settings.Changed += OnSettingsChanged;
+    public override void _ExitTree() => Settings.Changed -= OnSettingsChanged;
+
+    /// <summary>The language changed in the settings: update the menu texts.</summary>
+    private void OnSettingsChanged()
+    {
+        if (_menu == null || _lang == Loc.Current) return;
+        _lang = Loc.Current;
+        _presents.Text = Loc.T("INTRO_PRESENTS");
+        _tagline.Text = Loc.T("MENU_TAGLINE");
+        _credit.Text = Loc.T("MENU_CREDIT");
+        _version.Text = Loc.T("MENU_VERSION");
+        _continue.Text = Loc.T("MENU_CONTINUE");
+        _newGame.Text = Loc.T("MENU_NEW_GAME");
+        _worldLabel.Text = Loc.T("MENU_WORLD");
+        _random.Text = Loc.T("MENU_RANDOM");
+        _default.Text = Loc.T("MENU_DEFAULT");
+        _settingsButton.Text = Loc.T("MENU_SETTINGS");
+        _quit.Text = Loc.T("MENU_QUIT");
     }
 
     private int CurrentSeed => int.TryParse(_seedEdit.Text, out int s) ? s : Settings.DefaultSeed;

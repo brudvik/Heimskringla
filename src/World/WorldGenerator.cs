@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Godot;
+using Heimskringla.Core;
 
 namespace Heimskringla.World;
 
@@ -107,7 +108,7 @@ public sealed class WorldGenerator
         }
 
         int count = N * N;
-        progress("Former landskap...");
+        progress(Loc.T("LOADING_SHAPING_LAND"));
         var h = new float[count];
         Parallel.For(0, N, j =>
         {
@@ -117,15 +118,15 @@ public sealed class WorldGenerator
         });
         Step("Base height");
 
-        progress("Isbreer graver U-daler og fjorder...");
+        progress(Loc.T("LOADING_GLACIERS"));
         CarveGlacialValleys(h);
         Step("U-valleys/fjords");
 
-        progress("Eroderer fjell og daler (vann)...");
+        progress(Loc.T("LOADING_EROSION_WATER"));
         Erosion.Thermal(h, N, 14f, 4);
         Erosion.Hydraulic(h, N, Seed * 31 + 7, new Erosion.Settings(),
-            f => progress($"Eroderer fjell og daler (vann)... {f * 100:F0} %"));
-        progress("Eroderer skrenter (ras)...");
+            f => progress(Loc.F("LOADING_EROSION_WATER_PCT", f * 100)));
+        progress(Loc.T("LOADING_EROSION_SLOPES"));
         Erosion.Thermal(h, N, 11f, 6);
         Step("Erosion");
 
@@ -137,11 +138,11 @@ public sealed class WorldGenerator
             else if (hk < 0f && hk > -5f) h[k] = -5f * MathF.Pow(-hk / 5f, 1.4f);
         }
 
-        progress("Fyller senkninger (innsjøer)...");
+        progress(Loc.T("LOADING_LAKES"));
         float[] filled = PriorityFlood(h);
         Step("Priority flood");
 
-        progress("Beregner elver...");
+        progress(Loc.T("LOADING_RIVERS"));
         float[] acc = FlowAccumulation(h, filled);
         Step("Flow accumulation");
 
@@ -179,7 +180,7 @@ public sealed class WorldGenerator
         Step("Rivers");
 
         // Water surfaces
-        progress("Legger vann i innsjøer og elver...");
+        progress(Loc.T("LOADING_WATER"));
         var water = new float[count];
         var wetMask = new float[count];
         for (int k = 0; k < count; k++)
@@ -215,7 +216,7 @@ public sealed class WorldGenerator
         Step("Water surfaces");
 
         // Flow direction: down along the water surface (or the filled terrain surface), speed from slope and discharge
-        progress("Beregner strøm i elvene...");
+        progress(Loc.T("LOADING_FLOW"));
         var fx = new float[count];
         var fz = new float[count];
         for (int j = 1; j < N - 1; j++)
@@ -239,7 +240,7 @@ public sealed class WorldGenerator
 
         // Rapids and waterfalls: connected chains of steep river steps, from where the river starts
         // to fall until it lands in water or flatter terrain.
-        progress("Finner fossefall...");
+        progress(Loc.T("LOADING_WATERFALLS"));
         float Surface(int k) => MathF.Max(Height[k] + 0.25f, water[k] > NoWater ? water[k] : float.MinValue);
         bool IsRiver(int k) => acc[k] >= WorldSettings.RiverThreshold && h[k] > 0f;
         bool Steep(int k)
@@ -274,7 +275,7 @@ public sealed class WorldGenerator
         Step($"Waterfalls ({Cascades.Count})");
 
         // Climate
-        progress("Beregner klima...");
+        progress(Loc.T("LOADING_CLIMATE"));
         var wetFar = BoxBlur(BoxBlur(wetMask, 8), 8);
         var wetNear = BoxBlur(wetMask, 2);
         var ocean = new float[count];
@@ -304,7 +305,7 @@ public sealed class WorldGenerator
         Step("Climate");
 
         // Rock mask: steep or high terrain is bedrock. Drives rock strata/cliffs in GetHeight and the color.
-        progress("Former fjellsidene...");
+        progress(Loc.T("LOADING_ROCK"));
         var rock = new float[count];
         for (int j = 1; j < N - 1; j++)
         for (int i = 1; i < N - 1; i++)
@@ -329,7 +330,7 @@ public sealed class WorldGenerator
         for (int k = 0; k < count; k++) Curv[k] = blur[k] - Height[k];
         Step("Rock mask");
 
-        progress("Tegner verdenskart...");
+        progress(Loc.T("LOADING_MAP"));
         BuildMapPixels();
         Step("Map");
         Report = log.ToString();

@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Heimskringla.Core;
 
 namespace Heimskringla.World;
 
@@ -37,15 +38,15 @@ public static class Biomes
 
     public static string Name(Biome b) => b switch
     {
-        Biome.Ocean => "Hav",
-        Biome.Beach => "Strand",
-        Biome.Meadow => "Eng",
-        Biome.Forest => "Lauvskog",
-        Biome.PineForest => "Barskog",
-        Biome.Swamp => "Myr",
-        Biome.Tundra => "Lynghei",
-        Biome.Mountain => "Fjell",
-        Biome.Snow => "Snø",
+        Biome.Ocean => Loc.T("BIOME_OCEAN"),
+        Biome.Beach => Loc.T("BIOME_BEACH"),
+        Biome.Meadow => Loc.T("BIOME_MEADOW"),
+        Biome.Forest => Loc.T("BIOME_FOREST"),
+        Biome.PineForest => Loc.T("BIOME_PINE_FOREST"),
+        Biome.Swamp => Loc.T("BIOME_SWAMP"),
+        Biome.Tundra => Loc.T("BIOME_TUNDRA"),
+        Biome.Mountain => Loc.T("BIOME_MOUNTAIN"),
+        Biome.Snow => Loc.T("BIOME_SNOW"),
         _ => b.ToString(),
     };
 

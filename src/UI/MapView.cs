@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using Heimskringla.Core;
 
 namespace Heimskringla.UI;
 
@@ -34,9 +35,9 @@ public partial class MapView : Control
         DrawTextureRect(Texture, r, false);
         DrawRect(r, new Color(0.1f, 0.08f, 0.05f), false, 3f);
         var font = ThemeDB.FallbackFont;
-        DrawString(font, r.Position + new Vector2(0, -10), $"Verdenskart · seed {Seed} · 10,24 x 10,24 km · klikk for å teleportere · M lukker",
+        DrawString(font, r.Position + new Vector2(0, -10), Loc.F("MAP_TITLE", Seed),
             HorizontalAlignment.Left, -1, 18, new Color(1, 0.97f, 0.9f));
-        DrawString(font, r.Position + new Vector2(r.Size.X * 0.5f - 6, 22), "N", HorizontalAlignment.Left, -1, 22, Colors.White);
+        DrawString(font, r.Position + new Vector2(r.Size.X * 0.5f - 6, 22), Loc.T("MAP_NORTH"), HorizontalAlignment.Left, -1, 22, Colors.White);
 
         if (PlayerPosition == null) return;
         var p = PlayerPosition();

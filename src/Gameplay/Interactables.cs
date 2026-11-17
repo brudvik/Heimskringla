@@ -24,9 +24,9 @@ public static class Interactables
 {
     public static string ToolName(ToolKind t) => t switch
     {
-        ToolKind.Axe => "øks",
-        ToolKind.Pickaxe => "hakke",
-        _ => "hender",
+        ToolKind.Axe => Loc.T("TOOL_AXE"),
+        ToolKind.Pickaxe => Loc.T("TOOL_PICKAXE"),
+        _ => Loc.T("TOOL_HANDS"),
     };
 
     /// <summary>Creates a real node for a vegetation object the player is near.</summary>
@@ -107,24 +107,24 @@ public partial class TreeNode : StaticBody3D, IHittable
     }
 
     public string HitPrompt(ToolKind tool) =>
-        tool == ToolKind.Axe ? $"[Venstre mus] Hugg {Def.Name}" : $"{Def.Name} (trenger øks)";
+        tool == ToolKind.Axe ? Loc.F("PROMPT_CHOP", Def.DisplayName) : Loc.F("PROMPT_NEEDS_AXE", Def.DisplayName);
 
     public void Hit(Player p, ToolKind tool)
     {
         if (tool != ToolKind.Axe)
         {
-            Hud.Instance?.Toast("Du trenger en øks for å felle trær");
+            Hud.Instance?.Toast(Loc.T("TOAST_NEED_AXE"));
             return;
         }
         if (_hp < 0f) _hp = MaxHp;
         // Skill: a beginner deals 1 per chop, a skilled woodcutter up to 2.5, with some variation
         // (some chops land better than others)
-        float skill = WorldState.Skill("Hogging");
+        float skill = WorldState.Skill("woodcutting");
         float dmg = (1f + skill / 66f) * (float)GD.RandRange(0.8, 1.2);
         _hp -= dmg;
         float before = Mathf.Floor(skill / 10f);
-        float now = WorldState.Practice("Hogging", 0.8f);
-        if (Mathf.Floor(now / 10f) > before) Hud.Instance?.Toast($"Hogging økte til {Mathf.FloorToInt(now)}");
+        float now = WorldState.Practice("woodcutting", 0.8f);
+        if (Mathf.Floor(now / 10f) > before) Hud.Instance?.Toast(Loc.F("TOAST_SKILL_UP", Loc.T("SKILL_WOODCUTTING"), Mathf.FloorToInt(now)));
         // Impact point on the trunk, on the side facing the player
         var toPlayer = p.GlobalPosition - GlobalPosition;
         toPlayer.Y = 0;
@@ -153,11 +153,11 @@ public partial class TreeNode : StaticBody3D, IHittable
         GetParent().AddChild(fall);
         // Start a little above the stump so they do not collide
         fall.GlobalTransform = GlobalTransform.Translated(new Vector3(0, 0.55f * Inst.Scale, 0));
-        Hud.Instance?.Toast($"{Def.Name} faller!");
+        Hud.Instance?.Toast(Loc.F("TOAST_TREE_FALLS", Def.DisplayName));
         QueueFree();
     }
 
-    public string TargetName => Def.Name;
+    public string TargetName => Def.DisplayName;
     public float HealthFraction => _hp < 0f ? 1f : Mathf.Clamp(_hp / MaxHp, 0f, 1f);
 
     private MeshInstance3D _notch;
@@ -187,13 +187,13 @@ public partial class RockNode : StaticBody3D, IHittable
     private int _hp = -1;
 
     public string HitPrompt(ToolKind tool) =>
-        tool == ToolKind.Pickaxe ? $"[Venstre mus] Hakk {Def.Name}" : $"{Def.Name} (trenger hakke)";
+        tool == ToolKind.Pickaxe ? Loc.F("PROMPT_MINE", Def.DisplayName) : Loc.F("PROMPT_NEEDS_PICKAXE", Def.DisplayName);
 
     public void Hit(Player p, ToolKind tool)
     {
         if (tool != ToolKind.Pickaxe)
         {
-            Hud.Instance?.Toast("Du trenger en hakke for å hakke stein");
+            Hud.Instance?.Toast(Loc.T("TOAST_NEED_PICKAXE"));
             return;
         }
         if (_hp < 0) _hp = Def.Hp;
@@ -216,7 +216,7 @@ public partial class RockNode : StaticBody3D, IHittable
         QueueFree();
     }
 
-    public string TargetName => Def.Name;
+    public string TargetName => Def.DisplayName;
     public float HealthFraction => _hp < 0 ? 1f : Mathf.Clamp(_hp / (float)Def.Hp, 0f, 1f);
 }
 
@@ -226,7 +226,7 @@ public partial class PropPickup : StaticBody3D, IInteractable
     public PropInstance Inst;
     public VegetationManager Manager;
 
-    public string Prompt => $"[E] Plukk opp {Def.Name.ToLowerInvariant()}";
+    public string Prompt => Loc.F("PROMPT_PICK_UP", Def.DisplayName.ToLowerInvariant());
 
     public void Interact(Player p)
     {
@@ -242,7 +242,7 @@ public partial class LooseItem : RigidBody3D, IInteractable
     public PropDef Def;
     private float _check;
 
-    public string Prompt => $"[E] Plukk opp {Def.Name.ToLowerInvariant()}";
+    public string Prompt => Loc.F("PROMPT_PICK_UP", Def.DisplayName.ToLowerInvariant());
 
     public override void _Ready()
     {

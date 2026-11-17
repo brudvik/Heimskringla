@@ -13,6 +13,7 @@
 #   HK_DECALTEST=1       step 13 places a large red decal at the character (decal check)
 #   HK_NOVOLFOG=1        turn off volumetric fog (performance/debugging)
 #   HK_NOAUTOEXP=1       turn off auto exposure
+#   HK_LANG=en|nb        force the game language
 set -e
 cd "$(dirname "$0")/.."
 OUT="${1:?Specify output directory for screenshots}"

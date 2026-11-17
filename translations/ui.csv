@@ -1,0 +1,60 @@
+keys,en,nb
+INTRO_PRESENTS,presents,presenterer
+MENU_TAGLINE,A saga from the North,En saga fra Norden
+MENU_CONTINUE,Continue,Fortsett
+MENU_NEW_GAME,New game,Nytt spill
+MENU_WORLD,World,Verden
+MENU_RANDOM,Random,Tilfeldig
+MENU_DEFAULT,Default,Standard
+MENU_SETTINGS,Settings,Innstillinger
+MENU_QUIT,Quit,Avslutt
+MENU_CREDIT,Developed by Kjell Arne Brudvik,Utviklet av Kjell Arne Brudvik
+MENU_VERSION,early development build,tidlig utviklingsversjon
+SETTINGS_TITLE,Settings,Innstillinger
+SETTINGS_MASTER_VOLUME,Master volume,Hovedvolum
+SETTINGS_MUSIC_VOLUME,Music and menu,Musikk og meny
+SETTINGS_MOUSE_SENSITIVITY,Mouse sensitivity,Musfølsomhet
+SETTINGS_FOV,Field of view,Synsfelt
+SETTINGS_GRAPHICS,Graphics,Grafikk
+SETTINGS_QUALITY_LOW,Low,Lav
+SETTINGS_QUALITY_MEDIUM,Medium,Middels
+SETTINGS_QUALITY_HIGH,High,Høy
+SETTINGS_FULLSCREEN,Fullscreen,Fullskjerm
+SETTINGS_VSYNC,Vertical sync (VSync),Vertikal synk (VSync)
+SETTINGS_LANGUAGE,Language,Språk
+SETTINGS_LANGUAGE_SYSTEM,System,System
+SETTINGS_BACK,Back,Tilbake
+PAUSE_CONTINUE,Continue,Fortsett
+PAUSE_SETTINGS,Settings,Innstillinger
+PAUSE_SAVE,Save game,Lagre spillet
+PAUSE_MAIN_MENU,Main menu,Til hovedmenyen
+PAUSE_QUIT,Quit,Avslutt
+HUD_INVENTORY,INVENTORY,INVENTAR
+HUD_COMPASS_N,N,N
+HUD_COMPASS_NE,NE,NØ
+HUD_COMPASS_E,E,Ø
+HUD_COMPASS_SE,SE,SØ
+HUD_COMPASS_S,S,S
+HUD_COMPASS_SW,SW,SV
+HUD_COMPASS_W,W,V
+HUD_COMPASS_NW,NW,NV
+HELP_LINE_1,HEIMSKRINGLA  ·  playtest        F1 hide,HEIMSKRINGLA  ·  spill-test        F1 skjul
+HELP_LINE_2,WASD walk · Shift run · Alt walk slowly · Space jump,WASD gå · Shift løp · Alt rolig · Space hopp
+HELP_LINE_3,Mouse look · Wheel zoom · Left mouse: chop/mine,Mus se · Hjul zoom · Venstre mus: hugg/hakk
+HELP_LINE_4,E pick up · 1 Axe · 2 Pickaxe · 3 Hands,E plukk opp · 1 Øks · 2 Hakke · 3 Hender
+HELP_LINE_5,B build campfire (3 branches + 5 stones),B bygg bål (3 greiner + 5 stein)
+HELP_LINE_6,M map · F fly (Ctrl down) · T fast-forward time,M kart · F fly (Ctrl ned) · T spol tid
+HELP_LINE_7,F3 debug · F5 save · F9 load · F10 new world,F3 debug · F5 lagre · F9 last · F10 ny verden
+HELP_LINE_8,F6 change weather · F7 next season,F6 skift vær · F7 neste årstid
+MAP_TITLE,World map · seed {0} · 10.24 x 10.24 km · click to teleport · M closes,"Verdenskart · seed {0} · 10,24 x 10,24 km · klikk for å teleportere · M lukker"
+MAP_NORTH,N,N
+LOADING_STARTING,Starting...,Starter...
+LOADING_GENERATING,Generating world (seed {0}),Genererer verden (seed {0})
+LOADING_ERROR,Error during generation:,Feil under generering:
+LOADING_TERRAIN,Loading terrain around the starting point... ({0} jobs left),Laster terreng rundt startpunktet... ({0} jobber igjen)
+TOAST_SAVED,Game saved.,Spillet er lagret.
+TOAST_LOADED,Saved game loaded.,Lagret spill lastet.
+TOAST_WELCOME,Welcome to Heimskringla! World generated in {0:F1} s.,Velkommen til Heimskringla! Verden generert på {0:F1} s.
+TOAST_WEATHER_CHANGES,Weather changes: {0},Været skifter: {0}
+TOAST_SEASON,Season: {0},Årstid: {0}
+TOAST_NO_SAVE,No save found for this world.,Ingen lagring funnet for denne verdenen.

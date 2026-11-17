@@ -135,20 +135,44 @@ public static class MenuSound
     }
 }
 
-/// <summary>Settings (audio, controls, display, graphics). Changes are applied and saved immediately.</summary>
+/// <summary>Settings (language, audio, controls, display, graphics). Changes are applied and saved immediately.</summary>
 public partial class SettingsPanel : PanelContainer
 {
     public Action OnBack;
+    private VBoxContainer _content;
+    private string _lang;
+
+    public override void _EnterTree() => Settings.Changed += OnSettingsChanged;
+    public override void _ExitTree() => Settings.Changed -= OnSettingsChanged;
 
     public override void _Ready()
     {
         ProcessMode = ProcessModeEnum.Always;
         AddThemeStyleboxOverride("panel", MenuUi.PanelBox());
         CustomMinimumSize = new Vector2(620, 0);
+        Build();
+    }
+
+    /// <summary>The language changed: rebuild the panel (deferred, since it happens inside a control's signal).</summary>
+    private void OnSettingsChanged()
+    {
+        if (_content == null || _lang == Loc.Current) return;
+        Callable.From(() => Build(focusLanguage: true)).CallDeferred();
+    }
+
+    private void Build(bool focusLanguage = false)
+    {
+        if (_content != null)
+        {
+            RemoveChild(_content);
+            _content.QueueFree();
+        }
+        _lang = Loc.Current;
         var v = new VBoxContainer();
+        _content = v;
         v.AddThemeConstantOverride("separation", 14);
         AddChild(v);
-        v.AddChild(MenuUi.Label("Innstillinger", 34, MenuUi.Gold, MenuUi.Title));
+        v.AddChild(MenuUi.Label(Loc.T("SETTINGS_TITLE"), 34, MenuUi.Gold, MenuUi.Title));
         v.AddChild(new HSeparator());
 
         var grid = new GridContainer { Columns = 2 };
@@ -156,33 +180,50 @@ public partial class SettingsPanel : PanelContainer
         grid.AddThemeConstantOverride("v_separation", 12);
         v.AddChild(grid);
 
-        Slider(grid, "Hovedvolum", 0f, 1f, Settings.MasterVolume, x => Settings.MasterVolume = x, x => $"{x * 100:0} %");
-        Slider(grid, "Musikk og meny", 0f, 1f, Settings.MusicVolume, x => Settings.MusicVolume = x, x => $"{x * 100:0} %");
-        Slider(grid, "Musfølsomhet", 0.3f, 2.5f, Settings.MouseSensitivity, x => Settings.MouseSensitivity = x, x => $"{x:0.0}×");
-        Slider(grid, "Synsfelt", 60f, 95f, Settings.Fov, x => Settings.Fov = x, x => $"{x:0}°");
+        // Language: "System" + each supported language (names shown in their own language)
+        Row(grid, Loc.T("SETTINGS_LANGUAGE"));
+        var lang = new OptionButton();
+        lang.AddItem(Loc.T("SETTINGS_LANGUAGE_SYSTEM"));
+        int selected = 0;
+        for (int i = 0; i < Loc.Languages.Length; i++)
+        {
+            lang.AddItem(Loc.Languages[i].Name);
+            if (Loc.Languages[i].Code == Settings.Language) selected = i + 1;
+        }
+        lang.Selected = selected;
+        MenuUi.StyleInput(lang);
+        lang.ItemSelected += i => { Settings.Language = i <= 0 ? "" : Loc.Languages[(int)i - 1].Code; Changed(); };
+        grid.AddChild(lang);
 
-        Row(grid, "Grafikk");
+        Slider(grid, Loc.T("SETTINGS_MASTER_VOLUME"), 0f, 1f, Settings.MasterVolume, x => Settings.MasterVolume = x, x => $"{x * 100:0} %");
+        Slider(grid, Loc.T("SETTINGS_MUSIC_VOLUME"), 0f, 1f, Settings.MusicVolume, x => Settings.MusicVolume = x, x => $"{x * 100:0} %");
+        Slider(grid, Loc.T("SETTINGS_MOUSE_SENSITIVITY"), 0.3f, 2.5f, Settings.MouseSensitivity, x => Settings.MouseSensitivity = x, x => $"{x:0.0}×");
+        Slider(grid, Loc.T("SETTINGS_FOV"), 60f, 95f, Settings.Fov, x => Settings.Fov = x, x => $"{x:0}°");
+
+        Row(grid, Loc.T("SETTINGS_GRAPHICS"));
         var q = new OptionButton();
-        q.AddItem("Lav"); q.AddItem("Middels"); q.AddItem("Høy");
+        q.AddItem(Loc.T("SETTINGS_QUALITY_LOW")); q.AddItem(Loc.T("SETTINGS_QUALITY_MEDIUM")); q.AddItem(Loc.T("SETTINGS_QUALITY_HIGH"));
         q.Selected = Settings.Quality;
         MenuUi.StyleInput(q);
         q.ItemSelected += i => { Settings.Quality = (int)i; Changed(); };
         grid.AddChild(q);
 
-        Row(grid, "Fullskjerm");
+        Row(grid, Loc.T("SETTINGS_FULLSCREEN"));
         var fs = new CheckButton { ButtonPressed = Settings.Fullscreen };
         fs.Toggled += on => { Settings.Fullscreen = on; Changed(); };
         grid.AddChild(fs);
 
-        Row(grid, "Vertikal synk (VSync)");
+        Row(grid, Loc.T("SETTINGS_VSYNC"));
         var vs = new CheckButton { ButtonPressed = Settings.VSync };
         vs.Toggled += on => { Settings.VSync = on; Changed(); };
         grid.AddChild(vs);
 
         v.AddChild(new HSeparator());
-        var back = MenuUi.Button("Tilbake", 24, () => OnBack?.Invoke());
+        var back = MenuUi.Button(Loc.T("SETTINGS_BACK"), 24, () => OnBack?.Invoke());
         back.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
         v.AddChild(back);
+
+        if (focusLanguage && IsVisibleInTree()) lang.GrabFocus();
     }
 
     private static void Changed()

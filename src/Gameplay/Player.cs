@@ -136,7 +136,7 @@ public partial class Player : CharacterBody3D
     {
         Flying = !Flying;
         Velocity = Vector3.Zero;
-        Hud.Instance?.Toast(Flying ? "Flymodus PÅ (Shift = raskere)" : "Flymodus AV");
+        Hud.Instance?.Toast(Flying ? Loc.T("TOAST_FLY_ON") : Loc.T("TOAST_FLY_OFF"));
     }
 
     public void Teleport(float x, float z)
@@ -153,7 +153,7 @@ public partial class Player : CharacterBody3D
     public void StartSwing()
     {
         if (_swing >= 0f || Flying || Swimming) return;
-        if (Tool != ToolKind.Hands && Stamina < 6f) { Hud.Instance?.Toast("For sliten til å hugge"); return; }
+        if (Tool != ToolKind.Hands && Stamina < 6f) { Hud.Instance?.Toast(Loc.T("TOAST_TOO_TIRED")); return; }
         if (Tool != ToolKind.Hands) UseStamina(6f);
         _swing = 0f;
         _hitDone = false;
@@ -391,24 +391,24 @@ public partial class Player : CharacterBody3D
     public Campfire BuildCampfire(bool free = false)
     {
         if (Flying || Swimming) return null;
-        if (!free && (Inventory.Count("Grein") < Campfire.CostBranches || Inventory.Count("Stein") < Campfire.CostStones))
+        if (!free && (Inventory.Count("branch") < Campfire.CostBranches || Inventory.Count("stone") < Campfire.CostStones))
         {
-            Hud.Instance?.Toast($"Et bål krever {Campfire.CostBranches} greiner og {Campfire.CostStones} stein.");
+            Hud.Instance?.Toast(Loc.F("TOAST_CAMPFIRE_COST", Campfire.CostBranches, Campfire.CostStones));
             return null;
         }
         var forward = new Basis(Vector3.Up, _model.Rotation.Y) * Vector3.Forward;
         var pos = GlobalPosition + forward * 1.8f;
         pos.Y = Game.World.GetHeight(pos.X, pos.Z);
-        if (Game.World.GetWaterLevel(pos.X, pos.Z) > pos.Y) { Hud.Instance?.Toast("Kan ikke bygge bål i vann."); return null; }
+        if (Game.World.GetWaterLevel(pos.X, pos.Z) > pos.Y) { Hud.Instance?.Toast(Loc.T("TOAST_NO_FIRE_IN_WATER")); return null; }
         if (!free)
         {
-            Inventory.Add("Grein", -Campfire.CostBranches);
-            Inventory.Add("Stein", -Campfire.CostStones);
+            Inventory.Add("branch", -Campfire.CostBranches);
+            Inventory.Add("stone", -Campfire.CostStones);
         }
         var fire = new Campfire();
         GetParent().AddChild(fire);
         fire.GlobalPosition = pos;
-        Hud.Instance?.Toast("Du bygde et bål.");
+        Hud.Instance?.Toast(Loc.T("TOAST_BUILT_FIRE"));
         return fire;
     }
 

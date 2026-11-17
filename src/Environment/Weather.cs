@@ -15,7 +15,8 @@ public enum WeatherKind { Clear, Cloudy, Overcast, Rain, Storm, Fog, Broken }
 public partial class Weather : Node3D
 {
     public const int DaysPerSeason = 6;
-    public static readonly string[] SeasonNames = { "Vår", "Sommer", "Høst", "Vinter" };
+    private static readonly string[] SeasonKeys = { "SEASON_SPRING", "SEASON_SUMMER", "SEASON_AUTUMN", "SEASON_WINTER" };
+    public static string SeasonNameOf(int season) => Loc.T(SeasonKeys[season]);
 
     public static Weather Current;
     public WeatherKind Kind = WeatherKind.Cloudy;
@@ -54,13 +55,13 @@ public partial class Weather : Node3D
 
     public static string Label(WeatherKind k, bool snow) => k switch
     {
-        WeatherKind.Clear => "Klart",
-        WeatherKind.Cloudy => "Lettskyet",
-        WeatherKind.Overcast => "Overskyet",
-        WeatherKind.Rain => snow ? "Snøvær" : "Regn",
-        WeatherKind.Storm => snow ? "Snøstorm" : "Storm",
-        WeatherKind.Fog => "Tåke",
-        WeatherKind.Broken => "Skiftende",
+        WeatherKind.Clear => Loc.T("WEATHER_CLEAR"),
+        WeatherKind.Cloudy => Loc.T("WEATHER_CLOUDY"),
+        WeatherKind.Overcast => Loc.T("WEATHER_OVERCAST"),
+        WeatherKind.Rain => Loc.T(snow ? "WEATHER_SNOW" : "WEATHER_RAIN"),
+        WeatherKind.Storm => Loc.T(snow ? "WEATHER_BLIZZARD" : "WEATHER_STORM"),
+        WeatherKind.Fog => Loc.T("WEATHER_FOG"),
+        WeatherKind.Broken => Loc.T("WEATHER_BROKEN"),
         _ => "",
     };
 
@@ -70,7 +71,7 @@ public partial class Weather : Node3D
     /// <summary>0..1 through the year, 0 = spring equinox, 0.25 = summer solstice, 0.5 = autumn, 0.75 = winter solstice.</summary>
     public float YearT => Mathf.PosMod((_dn.Day + _dn.TimeOfDay) / (4f * DaysPerSeason), 1f);
     public int Season => (int)(YearT * 4f) % 4;
-    public string SeasonName => SeasonNames[Season];
+    public string SeasonName => SeasonNameOf(Season);
     public int DayOfSeason => _dn.Day % DaysPerSeason + 1;
 
     /// <summary>Temperature offset for the season (peak in midsummer, lowest in midwinter).</summary>

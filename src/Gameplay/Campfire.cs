@@ -29,18 +29,20 @@ public partial class Campfire : StaticBody3D, IInteractable
     {
         get
         {
-            string what = Inventory.Count("Tømmer") > 0 ? "tømmer" : Inventory.Count("Grein") > 0 ? "grein" : null;
-            if (what == null) return Burning ? $"Bål ({Fuel / 60f:F0} min igjen) · trenger ved" : "Slokket bål · trenger ved";
-            return Burning ? $"[E] Legg på {what} ({Fuel / 60f:F0} min igjen)" : $"[E] Tenn bålet med {what}";
+            string what = Inventory.Count("wood") > 0 ? Loc.T("ITEM_WOOD").ToLowerInvariant()
+                : Inventory.Count("branch") > 0 ? Loc.T("ITEM_BRANCH").ToLowerInvariant() : null;
+            string minutes = (Fuel / 60f).ToString("F0");
+            if (what == null) return Burning ? Loc.F("PROMPT_CAMPFIRE_BURNING_NO_FUEL", minutes) : Loc.T("PROMPT_CAMPFIRE_OUT_NO_FUEL");
+            return Burning ? Loc.F("PROMPT_CAMPFIRE_ADD", what, minutes) : Loc.F("PROMPT_CAMPFIRE_LIGHT", what);
         }
     }
 
     public void Interact(Player p)
     {
-        if (Inventory.Count("Tømmer") > 0) { Inventory.Add("Tømmer", -1); Fuel = Mathf.Min(Fuel + 300f, MaxFuel); }
-        else if (Inventory.Count("Grein") > 0) { Inventory.Add("Grein", -1); Fuel = Mathf.Min(Fuel + 90f, MaxFuel); }
-        else { Hud.Instance?.Toast("Du har ikke ved (tømmer eller grein)."); return; }
-        Hud.Instance?.Toast(Burning ? "Bålet blusser opp." : "Bålet er tent.");
+        if (Inventory.Count("wood") > 0) { Inventory.Add("wood", -1); Fuel = Mathf.Min(Fuel + 300f, MaxFuel); }
+        else if (Inventory.Count("branch") > 0) { Inventory.Add("branch", -1); Fuel = Mathf.Min(Fuel + 90f, MaxFuel); }
+        else { Hud.Instance?.Toast(Loc.T("TOAST_NO_FIREWOOD")); return; }
+        Hud.Instance?.Toast(Burning ? Loc.T("TOAST_FIRE_FLARES") : Loc.T("TOAST_FIRE_LIT"));
     }
 
     public override void _Ready()

@@ -11,6 +11,8 @@ public partial class PauseMenu : CanvasLayer
     private Control _root;
     private VBoxContainer _buttons;
     private SettingsPanel _settings;
+    private Button _continue, _settingsButton, _save, _mainMenu, _quit;
+    private string _lang;
 
     public bool IsOpen => _root.Visible;
 
@@ -34,13 +36,29 @@ public partial class PauseMenu : CanvasLayer
         _buttons = stack;
         stack.AddChild(MenuUi.Label("Heimskringla", 46, MenuUi.Gold, MenuUi.Title));
         stack.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
-        stack.AddChild(MenuUi.Button("Fortsett", 28, Close));
-        stack.AddChild(MenuUi.Button("Innstillinger", 28, () => { _buttons.Visible = false; _settings.Visible = true; }));
-        stack.AddChild(MenuUi.Button("Lagre spillet", 28, () => { OnSave?.Invoke(); Close(); }));
-        stack.AddChild(MenuUi.Button("Til hovedmenyen", 28, () => { Close(); OnMainMenu?.Invoke(); }));
-        stack.AddChild(MenuUi.Button("Avslutt", 28, () => GetTree().Quit()));
+        _lang = Loc.Current;
+        stack.AddChild(_continue = MenuUi.Button(Loc.T("PAUSE_CONTINUE"), 28, Close));
+        stack.AddChild(_settingsButton = MenuUi.Button(Loc.T("PAUSE_SETTINGS"), 28, () => { _buttons.Visible = false; _settings.Visible = true; }));
+        stack.AddChild(_save = MenuUi.Button(Loc.T("PAUSE_SAVE"), 28, () => { OnSave?.Invoke(); Close(); }));
+        stack.AddChild(_mainMenu = MenuUi.Button(Loc.T("PAUSE_MAIN_MENU"), 28, () => { Close(); OnMainMenu?.Invoke(); }));
+        stack.AddChild(_quit = MenuUi.Button(Loc.T("PAUSE_QUIT"), 28, () => GetTree().Quit()));
         _settings = new SettingsPanel { Visible = false, OnBack = () => { _settings.Visible = false; _buttons.Visible = true; } };
         center.AddChild(_settings);
+    }
+
+    public override void _EnterTree() => Settings.Changed += OnSettingsChanged;
+    public override void _ExitTree() => Settings.Changed -= OnSettingsChanged;
+
+    /// <summary>The language changed in the settings: update the button texts.</summary>
+    private void OnSettingsChanged()
+    {
+        if (_continue == null || _lang == Loc.Current) return;
+        _lang = Loc.Current;
+        _continue.Text = Loc.T("PAUSE_CONTINUE");
+        _settingsButton.Text = Loc.T("PAUSE_SETTINGS");
+        _save.Text = Loc.T("PAUSE_SAVE");
+        _mainMenu.Text = Loc.T("PAUSE_MAIN_MENU");
+        _quit.Text = Loc.T("PAUSE_QUIT");
     }
 
     public override void _Input(InputEvent e)

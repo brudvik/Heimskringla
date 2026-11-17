@@ -1,0 +1,46 @@
+keys,en,nb
+PROP_SPRUCE,Spruce,Gran
+PROP_PINE,Pine,Furu
+PROP_BIRCH,Birch,Bjørk
+PROP_OAK,Oak,Eik
+PROP_DEAD_PINE,Dead pine,Tørrfuru
+PROP_BUSH,Bush,Busk
+PROP_FERN,Fern,Bregne
+PROP_FLOWERS,Flowers,Blomster
+PROP_MUSHROOM,Mushroom,Sopp
+PROP_BOULDER,Boulder,Steinblokk
+PROP_STONE,Stone,Stein
+PROP_CLIFF,Cliff,Klippe
+PROP_DRIFTWOOD,Driftwood,Drivved
+PROP_BRANCH,Branch,Grein
+PROP_LOG,Log,Tømmerstokk
+TOOL_AXE,Axe,Øks
+TOOL_PICKAXE,Pickaxe,Hakke
+TOOL_HANDS,Hands,Hender
+ITEM_WOOD,Wood,Tømmer
+ITEM_BRANCH,Branch,Grein
+ITEM_STONE,Stone,Stein
+ITEM_MUSHROOM,Mushroom,Sopp
+SKILL_WOODCUTTING,Woodcutting,Hogging
+PROMPT_CHOP,[Left mouse] Chop {0},[Venstre mus] Hugg {0}
+PROMPT_NEEDS_AXE,{0} (needs an axe),{0} (trenger øks)
+PROMPT_MINE,[Left mouse] Mine {0},[Venstre mus] Hakk {0}
+PROMPT_NEEDS_PICKAXE,{0} (needs a pickaxe),{0} (trenger hakke)
+PROMPT_PICK_UP,[E] Pick up {0},[E] Plukk opp {0}
+PROMPT_CAMPFIRE_BURNING_NO_FUEL,Campfire ({0} min left) · needs firewood,Bål ({0} min igjen) · trenger ved
+PROMPT_CAMPFIRE_OUT_NO_FUEL,Campfire out · needs firewood,Slokket bål · trenger ved
+PROMPT_CAMPFIRE_ADD,[E] Add {0} ({1} min left),[E] Legg på {0} ({1} min igjen)
+PROMPT_CAMPFIRE_LIGHT,[E] Light the fire with {0},[E] Tenn bålet med {0}
+TOAST_NEED_AXE,You need an axe to fell trees,Du trenger en øks for å felle trær
+TOAST_NEED_PICKAXE,You need a pickaxe to mine stone,Du trenger en hakke for å hakke stein
+TOAST_SKILL_UP,{0} increased to {1},{0} økte til {1}
+TOAST_TREE_FALLS,{0} is falling!,{0} faller!
+TOAST_NO_FIREWOOD,You have no firewood (wood or branches).,Du har ikke ved (tømmer eller grein).
+TOAST_FIRE_FLARES,The fire flares up.,Bålet blusser opp.
+TOAST_FIRE_LIT,The fire is lit.,Bålet er tent.
+TOAST_FLY_ON,Fly mode ON (Shift = faster),Flymodus PÅ (Shift = raskere)
+TOAST_FLY_OFF,Fly mode OFF,Flymodus AV
+TOAST_TOO_TIRED,Too tired to chop,For sliten til å hugge
+TOAST_CAMPFIRE_COST,A campfire needs {0} branches and {1} stones.,Et bål krever {0} greiner og {1} stein.
+TOAST_NO_FIRE_IN_WATER,Can't build a campfire in water.,Kan ikke bygge bål i vann.
+TOAST_BUILT_FIRE,You built a campfire.,Du bygde et bål.

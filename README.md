@@ -60,6 +60,7 @@ feels like Norwegian nature, and runs well.
 - Build a campfire
 - World map, save/load
 - Intro, main menu, settings and pause menu
+- English and Norwegian (Bokmål); follows the system language, switchable in Settings
 
 ## Getting started
 
@@ -108,6 +109,12 @@ scripts/autotest.sh out/ 4242   # output folder, optional seed
 ```
 
 See the header of the script for environment variables that turn individual features off for debugging.
+
+## Localization
+
+Player-facing text lives in `translations/*.csv` (columns `keys,en,nb`) and is looked up with
+`Loc.T("KEY")` / `Loc.F("KEY", args)`. English is the fallback. To add a language, add a column and
+an entry in `Loc.Languages`. Set `HK_LANG=en|nb` to force a language when testing.
 
 ## Releasing
 

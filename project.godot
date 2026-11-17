@@ -24,6 +24,11 @@ window/vsync/vsync_mode=1
 
 project/assembly_name="Heimskringla"
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/ui.en.translation", "res://translations/ui.nb.translation", "res://translations/world.en.translation", "res://translations/world.nb.translation", "res://translations/gameplay.en.translation", "res://translations/gameplay.nb.translation")
+locale/fallback="en"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

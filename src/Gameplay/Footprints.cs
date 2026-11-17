@@ -25,7 +25,7 @@ public static class Footprints
             float depth = water - ground;
             if (depth < 1.1f)
                 Effects.Burst(parent, new Vector3(pos.X, water + 0.05f, pos.Z), new Color(0.85f, 0.92f, 1f), 10, 0.15f);
-            return "vann";
+            return "water";
         }
 
         var n = w.GetNormal(pos.X, pos.Z);
@@ -43,7 +43,7 @@ public static class Footprints
         strength = Mathf.Max(strength, trail * 0.5f);
         if (snow) strength = 0.85f;
         if (strength > 0.05f) Spawn(parent, side, pos, yaw, strength, snow);
-        return snow ? "snø" : biome == Biome.Beach ? "sand" : biome == Biome.Swamp ? "myr" : n.Y < 0.75f ? "stein" : "gress";
+        return snow ? "snow" : biome == Biome.Beach ? "sand" : biome == Biome.Swamp ? "bog" : n.Y < 0.75f ? "rock" : "grass";
     }
 
     private static void Spawn(Node parent, int side, Vector3 pos, float yaw, float strength, bool snow)

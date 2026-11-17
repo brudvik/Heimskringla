@@ -15,6 +15,8 @@ public sealed class PropDef
 {
     public PropKind Kind;
     public string Name;
+    /// <summary>Translated name for display (Name is the translation key).</summary>
+    public string DisplayName => Loc.T(Name);
     public PropRole Role;
     public ModelVariant[] Variants;
     /// <summary>Index where the snow/cold variants start (-1 = none). Chosen in cold zones.</summary>
@@ -65,13 +67,13 @@ public static class PropLibrary
         // Spruce: our own procedurally generated Norway spruce with needle cards (SpruceBuilder); the low-poly spruces from
         // the nature pack had flat, angular branch plates that looked like cardboard up close.
         var spruce = OS.GetEnvironment("HK_OLDSPRUCE") == "1" ? ModelLibrary.Series(Nature + "Pine_{0}.gltf", 1, 3) : SpruceBuilder.Variants();
-        Def(PropKind.Spruce, "Gran", PropRole.Tree, spruce, proc.Spruce, d =>
+        Def(PropKind.Spruce, "PROP_SPRUCE", PropRole.Tree, spruce, proc.Spruce, d =>
         {
             d.MinScale = 0.9f; d.MaxScale = 1.45f; d.Sink = 0.15f; d.TrunkRadius = 0.3f;
             d.Tool = ToolKind.Axe; d.Hp = 5; d.LogsOnFell = 3; d.BranchesOnFell = 1;
         });
         var pine = ModelLibrary.Series(Nature + "Pine_{0}.gltf", 4, 5, 1.3f);
-        Def(PropKind.Pine, "Furu", PropRole.Tree, pine, proc.Pine, d =>
+        Def(PropKind.Pine, "PROP_PINE", PropRole.Tree, pine, proc.Pine, d =>
         {
             d.MinScale = 0.85f; d.MaxScale = 1.2f; d.Sink = 0.2f; d.TrunkRadius = 0.3f;
             d.Tool = ToolKind.Axe; d.Hp = 6; d.LogsOnFell = 4; d.BranchesOnFell = 1;
@@ -81,20 +83,20 @@ public static class PropLibrary
         bool oldTrees = OS.GetEnvironment("HK_OLDTREES") == "1";
         var birchBark = BirchMaterial();
         var birch = oldTrees ? OldBirch(birchBark) : LeafTreeBuilder.Variants(LeafTreeBuilder.Species.Birch, birchBark);
-        Def(PropKind.Birch, "Bjørk", PropRole.Tree, birch, proc.Birch, d =>
+        Def(PropKind.Birch, "PROP_BIRCH", PropRole.Tree, birch, proc.Birch, d =>
         {
             d.MinScale = 0.75f; d.MaxScale = 1.2f; d.Sink = 0.15f; d.TrunkRadius = 0.25f;
             d.Tool = ToolKind.Axe; d.Hp = 4; d.LogsOnFell = 2; d.BranchesOnFell = 2;
         });
         var oak = oldTrees ? OldOak() : LeafTreeBuilder.Variants(LeafTreeBuilder.Species.Oak,
             new StandardMaterial3D { ResourceName = "Bark", AlbedoColor = new Color(0.36f, 0.31f, 0.26f), Roughness = 0.95f });
-        Def(PropKind.Oak, "Eik", PropRole.Tree, oak, proc.Oak, d =>
+        Def(PropKind.Oak, "PROP_OAK", PropRole.Tree, oak, proc.Oak, d =>
         {
             d.MinScale = 0.85f; d.MaxScale = 1.3f; d.Sink = 0.15f; d.TrunkRadius = 0.4f;
             d.Tool = ToolKind.Axe; d.Hp = 8; d.LogsOnFell = 5; d.BranchesOnFell = 2;
         });
         var dead = ModelLibrary.Series(Nature + "DeadTree_{0}.gltf", 1, 5, 0.55f);
-        Def(PropKind.DeadTree, "Tørrfuru", PropRole.Tree, dead, proc.Pine, d =>
+        Def(PropKind.DeadTree, "PROP_DEAD_PINE", PropRole.Tree, dead, proc.Pine, d =>
         {
             d.MinScale = 0.8f; d.MaxScale = 1.2f; d.Sink = 0.25f; d.TrunkRadius = 0.45f;
             d.Tool = ToolKind.Axe; d.Hp = 3; d.LogsOnFell = 2; d.BranchesOnFell = 3;
@@ -111,44 +113,44 @@ public static class PropLibrary
         if (flowerBush != null) bush.Add(flowerBush);
         if (bush.Count > 0)
             bush.Add(new ModelVariant { Mesh = bush[0].Mesh, BaseScale = 1.15f });
-        Def(PropKind.Bush, "Busk", PropRole.Decor, bush, proc.Bush, d =>
+        Def(PropKind.Bush, "PROP_BUSH", PropRole.Decor, bush, proc.Bush, d =>
         {
             d.MaxDistance = 400f; d.MinScale = 0.7f; d.MaxScale = 1.3f; d.Sink = 0.1f;
         });
         var fern = ModelLibrary.Series(Nature + "Fern_1.gltf", 0, 0, 0.2f);
         fern.AddRange(ModelLibrary.Series(Nature + "Plant_1.gltf", 0, 0, 0.9f));
         fern.AddRange(ModelLibrary.Series(Nature + "Plant_1_Big.gltf", 0, 0, 0.4f));
-        Def(PropKind.Fern, "Bregne", PropRole.Decor, fern, proc.Bush, d =>
+        Def(PropKind.Fern, "PROP_FERN", PropRole.Decor, fern, proc.Bush, d =>
         {
             d.MaxDistance = 160f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.CastShadow = false;
         });
         var flower = ModelLibrary.Series(Nature + "Flower_{0}_Group.gltf", 3, 4, 0.3f);
         flower.AddRange(ModelLibrary.Series(Nature + "Clover_{0}.gltf", 1, 2, 0.4f));
-        Def(PropKind.Flower, "Blomster", PropRole.Decor, flower, proc.Bush, d =>
+        Def(PropKind.Flower, "PROP_FLOWERS", PropRole.Decor, flower, proc.Bush, d =>
         {
             d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.CastShadow = false;
         });
         var mush = ModelLibrary.Series(Nature + "Mushroom_Common.gltf", 0, 0, 0.45f);
-        Def(PropKind.Mushroom, "Sopp", PropRole.Pickup, mush, proc.Stone, d =>
+        Def(PropKind.Mushroom, "PROP_MUSHROOM", PropRole.Pickup, mush, proc.Stone, d =>
         {
-            d.MaxDistance = 100f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Sopp"; d.CastShadow = false;
+            d.MaxDistance = 100f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "mushroom"; d.CastShadow = false;
         });
 
         // ---------- Rock
         var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
         var boulder = ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 0.75f);
         foreach (var v in boulder) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
-        Def(PropKind.Boulder, "Steinblokk", PropRole.Rock, boulder, proc.Boulder, d =>
+        Def(PropKind.Boulder, "PROP_BOULDER", PropRole.Rock, boulder, proc.Boulder, d =>
         {
             // Sunk well in (boulders are partly buried, not sitting on top of the ground)
             d.MaxDistance = 550f; d.MinScale = 0.6f; d.MaxScale = 1.6f; d.Sink = 0.55f;
-            d.Tool = ToolKind.Pickaxe; d.Hp = 6; d.Item = "Stein"; d.ItemsOnHit = 1; d.ItemsOnBreak = 3;
+            d.Tool = ToolKind.Pickaxe; d.Hp = 6; d.Item = "stone"; d.ItemsOnHit = 1; d.ItemsOnBreak = 3;
         });
         var stone = ModelLibrary.Series(Nature + "Pebble_Round_{0}.gltf", 1, 5, 0.8f);
         stone.AddRange(ModelLibrary.Series(Nature + "Pebble_Square_{0}.gltf", 1, 6, 0.8f));
-        Def(PropKind.Stone, "Stein", PropRole.Pickup, stone, proc.Stone, d =>
+        Def(PropKind.Stone, "PROP_STONE", PropRole.Pickup, stone, proc.Stone, d =>
         {
-            d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Stein"; d.CastShadow = false;
+            d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "stone"; d.CastShadow = false;
         });
 
         // ---------- Cliff formations: Kenney shapes + large MegaKit rocks, shared rock shader
@@ -174,24 +176,24 @@ public static class PropLibrary
         }
         cliffs.RemoveAll(v => v == null);
         foreach (var v in cliffs) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
-        Def(PropKind.Cliff, "Klippe", PropRole.Obstacle, cliffs, proc.Boulder, d =>
+        Def(PropKind.Cliff, "PROP_CLIFF", PropRole.Obstacle, cliffs, proc.Boulder, d =>
         {
             d.MaxDistance = 1000f; d.MinScale = 0.8f; d.MaxScale = 1.6f; d.Sink = 0.9f;
         });
 
         // ---------- Driftwood on the beaches (gives timber)
         // Uses the same bark-textured log as the timber logs, just larger and bleached
-        Def(PropKind.Driftwood, "Drivved", PropRole.Pickup, null, proc.Log, d =>
+        Def(PropKind.Driftwood, "PROP_DRIFTWOOD", PropRole.Pickup, null, proc.Log, d =>
         {
-            d.MaxDistance = 150f; d.MinScale = 1.2f; d.MaxScale = 2.0f; d.Item = "Tømmer"; d.Sink = 0.1f;
+            d.MaxDistance = 150f; d.MinScale = 1.2f; d.MaxScale = 2.0f; d.Item = "wood"; d.Sink = 0.1f;
         });
 
         // ---------- Wood resources (always procedurally generated, with bark texture)
-        Def(PropKind.Branch, "Grein", PropRole.Pickup, null, proc.Branch, d =>
+        Def(PropKind.Branch, "PROP_BRANCH", PropRole.Pickup, null, proc.Branch, d =>
         {
-            d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Grein"; d.CastShadow = false;
+            d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "branch"; d.CastShadow = false;
         });
-        Def(PropKind.Log, "Tømmerstokk", PropRole.Pickup, null, proc.Log, d => { d.Item = "Tømmer"; });
+        Def(PropKind.Log, "PROP_LOG", PropRole.Pickup, null, proc.Log, d => { d.Item = "wood"; });
 
         // ---------- Snow-covered variants (Ultimate Nature Pack, low-poly) for cold zones
         // Spruce/pine/birch use the regular models in cold zones too; the snow is applied in
