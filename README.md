@@ -109,6 +109,15 @@ scripts/autotest.sh out/ 4242   # output folder, optional seed
 
 See the header of the script for environment variables that turn individual features off for debugging.
 
+## Releasing
+
+```bash
+scripts/release.sh                    # build build/heimskringla-YYYY-MM-DD-X.Y.Z.zip (patch bump from last tag)
+scripts/release.sh 0.2.0 --publish    # build, tag v0.2.0, push and create a GitHub release
+```
+
+Optionally pass `--notes <file.md>` for the release notes; otherwise the commit list since the previous tag is used.
+
 ## Project structure
 
 ```
