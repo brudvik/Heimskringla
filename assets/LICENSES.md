@@ -49,3 +49,8 @@ Wind recordings from https://freesound.org, license CC0 1.0 (no attribution requ
 ## assets/fonts/ - Cinzel (SIL Open Font License 1.1)
 
 - Cinzel.ttf - Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel), license in OFL-Cinzel.txt
+
+## assets/logo/ - original artwork (MIT)
+
+Logo, icon and loading-screen background created by Kjell Arne Brudvik with AI assistance.
+Released under the project's MIT License (see LICENSE in the repository root).

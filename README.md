@@ -12,6 +12,7 @@
   <img alt="Jolt Physics" src="https://img.shields.io/badge/physics-Jolt-orange">
   <img alt="Platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white">
   <img alt="Status: early development" src="https://img.shields.io/badge/status-early%20development-yellow">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
   <img alt="Assets: CC0" src="https://img.shields.io/badge/assets-CC0-brightgreen">
 </p>
 
@@ -140,6 +141,13 @@ shaders/        Terrain, water, sky, vegetation and effect shaders
 scripts/        Asset import/fetch helpers and the autotest runner
 assets/         Models, textures, audio and fonts (see assets/LICENSES.md)
 ```
+
+## License
+
+The source code and original artwork (logo, icon and loading-screen art) are released under the
+[MIT License](LICENSE). Third-party assets keep their own licenses — see below.
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
 

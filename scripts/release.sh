@@ -59,6 +59,7 @@ if grep -q "^ERROR" build/export.log || [ ! -f "$OUT/Heimskringla.exe" ] || [ ! 
   echo "Export failed - see build/export.log"; grep "^ERROR" build/export.log | sort | uniq | head; exit 1
 fi
 
+cp LICENSE "$OUT/LICENSE.txt"
 cp assets/LICENSES.md "$OUT/THIRD-PARTY-LICENSES.md"
 cp assets/fonts/OFL-Cinzel.txt "$OUT/"
 
