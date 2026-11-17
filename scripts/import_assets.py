@@ -209,8 +209,7 @@ def main():
                 "| survival/ | Survival Kit | Kenney (kenney.nl) |\n"
                 "| outfits/ | Modular Character Outfits - Fantasy | Quaternius |\n"
                 "| nature_lowpoly/ | Ultimate Nature Pack (Jun 2019) | Quaternius |\n"
-                "| kenney_nature/ | Nature Kit | Kenney (kenney.nl) |\n\n"
-                "All packs are also available extracted in D:/3dmodels/extracted.\n")
+                "| kenney_nature/ | Nature Kit | Kenney (kenney.nl) |\n")
     print("Done.")
 
 
