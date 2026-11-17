@@ -5,7 +5,7 @@ using Heimskringla.World;
 
 namespace Heimskringla.Gameplay;
 
-/// <summary>Fotspor (decals) i sand, snø, myr og på tråkk, og plask i grunt vann.</summary>
+/// <summary>Footprints (decals) in sand, snow, bog and on trails, and splashes in shallow water.</summary>
 public static class Footprints
 {
     private const int MaxPrints = 90;
@@ -14,7 +14,7 @@ public static class Footprints
     public static int Spawned;
     public static string LastInfo = "";
 
-    /// <summary>Kalles ved hvert fotsteg. Returnerer underlaget (til lyd senere).</summary>
+    /// <summary>Called on every footstep. Returns the surface type (for sound later).</summary>
     public static string OnStep(Node parent, int side, Vector3 pos, float yaw)
     {
         var w = Game.World;
@@ -63,7 +63,7 @@ public static class Footprints
         d.Rotation = new Vector3(0, yaw, 0);
         Prints.Enqueue(d);
         Spawned++;
-        LastInfo = $"spor #{Spawned} pos={d.GlobalPosition} bakke={Game.World.GetHeight(pos.X, pos.Z):F2} styrke={strength:F2}";
+        LastInfo = $"print #{Spawned} pos={d.GlobalPosition} ground={Game.World.GetHeight(pos.X, pos.Z):F2} strength={strength:F2}";
         while (Prints.Count > MaxPrints)
         {
             var old = Prints.Dequeue();
@@ -75,7 +75,7 @@ public static class Footprints
         tw.TweenCallback(Callable.From(d.QueueFree));
     }
 
-    /// <summary>Lager en enkel sko-avtrykkstekstur (såle + hæl) i kode.</summary>
+    /// <summary>Creates a simple shoe-print texture (sole + heel) in code.</summary>
     private static Texture2D MakeTexture()
     {
         int w = 48, h = 96;
@@ -84,7 +84,7 @@ public static class Footprints
         for (int x = 0; x < w; x++)
         {
             float u = (x + 0.5f) / w * 2f - 1f, v = (y + 0.5f) / h;
-            // Forfot (ellipse) og hæl (mindre ellipse)
+            // Forefoot (ellipse) and heel (smaller ellipse)
             float fore = Ellipse(u, v, 0f, 0.30f, 0.85f, 0.26f);
             float heel = Ellipse(u, v, 0f, 0.78f, 0.62f, 0.17f);
             float a = Mathf.Clamp(Mathf.Max(fore, heel), 0f, 1f);

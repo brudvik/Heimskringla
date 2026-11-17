@@ -5,8 +5,8 @@ using Godot;
 namespace Heimskringla.UI;
 
 /// <summary>
-/// Lager ikoner ved å rendre 3D-mesher i en skjult SubViewport (én om gangen, over noen frames).
-/// Ikonene matcher dermed modellene i spillet automatisk.
+/// Creates icons by rendering 3D meshes in a hidden SubViewport (one at a time, over a few frames).
+/// The icons thus match the in-game models automatically.
 /// </summary>
 public partial class IconRenderer : Node
 {
@@ -79,7 +79,7 @@ public partial class IconRenderer : Node
         var (key, mesh, rot) = _queue.Dequeue();
         _mi.Mesh = mesh;
         _mi.RotationDegrees = rot;
-        // Ramm inn modellen: avgrensningskule rundt den roterte AABB-en
+        // Frame the model: bounding sphere around the rotated AABB
         var aabb = mesh.GetAabb();
         var center = _mi.Basis * aabb.GetCenter();
         float radius = aabb.Size.Length() * 0.5f;

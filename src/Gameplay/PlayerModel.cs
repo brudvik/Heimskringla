@@ -4,9 +4,9 @@ using Heimskringla.Vegetation;
 namespace Heimskringla.Gameplay;
 
 /// <summary>
-/// Stilisert viking bygget av enkle former, med prosedyrisk animasjon (gange, løp, hugg, svømming).
-/// Kan byttes ut med en rigget CC0-figur senere; Player bruker bare Animate() og SetTool().
-/// Modellen ser mot -Z.
+/// Stylized viking built from simple shapes, with procedural animation (walking, running, chopping, swimming).
+/// Can be replaced with a rigged CC0 character later; Player only uses Animate() and SetTool().
+/// The model faces -Z.
 /// </summary>
 public partial class PlayerModel : PlayerVisual
 {
@@ -38,14 +38,14 @@ public partial class PlayerModel : PlayerVisual
         Box(_torso, new Vector3(0.48f, 0.62f, 0.30f), new Vector3(0, 0.36f, 0), tunic);
         Box(_torso, new Vector3(0.53f, 0.22f, 0.33f), new Vector3(0, 0.0f, 0), tunic);
         Box(_torso, new Vector3(0.50f, 0.07f, 0.32f), new Vector3(0, 0.09f, 0), belt);
-        // Hode
+        // Head
         var head = new MeshInstance3D { Mesh = new SphereMesh { Radius = 0.16f, Height = 0.32f, Material = skin }, Position = new Vector3(0, 0.83f, 0) };
         _torso.AddChild(head);
-        Box(_torso, new Vector3(0.25f, 0.22f, 0.1f), new Vector3(0, 0.71f, -0.12f), hair);   // skjegg
-        Box(_torso, new Vector3(0.30f, 0.18f, 0.12f), new Vector3(0, 0.80f, 0.1f), hair);   // hår bak
+        Box(_torso, new Vector3(0.25f, 0.22f, 0.1f), new Vector3(0, 0.71f, -0.12f), hair);   // beard
+        Box(_torso, new Vector3(0.30f, 0.18f, 0.12f), new Vector3(0, 0.80f, 0.1f), hair);   // hair at the back
         Box(_torso, new Vector3(0.035f, 0.025f, 0.02f), new Vector3(-0.055f, 0.86f, -0.152f), dark);
         Box(_torso, new Vector3(0.035f, 0.025f, 0.02f), new Vector3(0.055f, 0.86f, -0.152f), dark);
-        // Konisk hjelm med nesebeskytter
+        // Conical helmet with nose guard
         _torso.AddChild(new MeshInstance3D
         {
             Mesh = new CylinderMesh { TopRadius = 0.03f, BottomRadius = 0.175f, Height = 0.2f, RadialSegments = 10, Material = metal },
@@ -84,8 +84,8 @@ public partial class PlayerModel : PlayerVisual
         _pick.Visible = tool == ToolKind.Pickaxe;
     }
 
-    /// <param name="speed">horisontal fart (m/s)</param>
-    /// <param name="swing">0..1 under hugg, ellers negativ</param>
+    /// <param name="speed">horizontal speed (m/s)</param>
+    /// <param name="swing">0..1 during a chop, otherwise negative</param>
     public override void Animate(float speed, bool grounded, bool swimming, float swing, float dt)
     {
         _phase += dt * (2.2f + speed * 1.1f);
@@ -120,7 +120,7 @@ public partial class PlayerModel : PlayerVisual
 
         if (swing >= 0f)
         {
-            // Løft over hodet, så hugg ned foran
+            // Raise over the head, then chop down in front
             float a;
             if (swing < 0.4f) a = Mathf.Lerp(0f, 2.9f, Ease(swing / 0.4f));
             else if (swing < 0.62f) a = Mathf.Lerp(2.9f, 0.45f, (swing - 0.4f) / 0.22f);

@@ -2,8 +2,8 @@ shader_type spatial;
 render_mode cull_disabled, specular_schlick_ggx;
 #include "res://shaders/cloudshadow.gdshaderinc"
 
-// Gresstuster i MultiMesh. INSTANCE_CUSTOM.rgb = bakkefargen der tusten står (sRGB), .a = tilfeldig.
-// UV.y = 0 i tuppen, 1 ved roten. COLOR.r = tilfeldig per strå.
+// Grass tufts in a MultiMesh. INSTANCE_CUSTOM.rgb = ground color where the tuft stands (sRGB), .a = random.
+// UV.y = 0 at the tip, 1 at the root. COLOR.r = random per blade.
 
 #include "res://shaders/wind.gdshaderinc"
 
@@ -16,7 +16,7 @@ global uniform sampler2D world_map : filter_linear;
 global uniform vec4 world_rect;
 global uniform vec4 season_leaf_tint;
 
-// Samme flekkstøy som terrengshaderen, så gresset får samme farge som bakken det står på
+// Same patch noise as the terrain shader, so the grass gets the same color as the ground it stands on
 float ghash(vec2 p) {
 	uvec2 q = uvec2(ivec2(floor(p)) + ivec2(65536));
 	uint h = q.x * 1597334677u ^ q.y * 3812015801u;
@@ -42,20 +42,20 @@ void vertex() {
 	vec3 root = MODEL_MATRIX[3].xyz;
 	vec3 cam = INV_VIEW_MATRIX[3].xyz;
 	float d = distance(root.xz, cam.xz);
-	// Utover tynnes gresset tilfeldig (tust for tust) i stedet for at alt krymper samtidig
+	// Further out the grass is thinned randomly (tuft by tuft) instead of everything shrinking at once
 	float fade_s = 1.0 - smoothstep(fade_start, fade_end, d);
 	float keep = step(INSTANCE_CUSTOM.a, fade_s * 1.05 - 0.02);
 	float s = keep * mix(0.7, 1.0, fade_s);
 	tip = 1.0 - UV.y;
 	v_rnd = COLOR.r;
 
-	// Snø dekker gresset
+	// Snow covers the grass
 	float temp = texture(world_map, (root.xz - world_rect.xy) * world_rect.zw).r;
 	float snow = smoothstep(temp - 0.03, temp + 0.02, snow_line);
 	s *= 1.0 - snow;
 	v_hide = max(snow, 1.0 - keep);
 
-	// Vind: hele enga bøyer seg i kastene (bølger som vandrer over), hvert strå vipper litt for seg
+	// Wind: the whole meadow bends in the gusts (waves travelling across), each blade sways a little on its own
 	float gust = wind_gust(wp.xz, TIME);
 	v_gust = gust;
 	float flick = sin(TIME * (2.2 + wind_strength * 3.0) + wp.x * 0.9 + wp.z * 0.7 + v_rnd * 6.28);
@@ -71,12 +71,12 @@ void vertex() {
 	VERTEX += transpose(m) * off * s / sc2;
 
 	base_col = pow(INSTANCE_CUSTOM.rgb, vec3(2.2));
-	// Tørre/frodige flekker som i terrengshaderen
+	// Dry/lush patches as in the terrain shader
 	float big = gnoise_v(root.xz * 0.012), mid = gnoise_v(root.xz * 0.07 + 31.0);
 	dryness = smoothstep(0.55, 0.85, big);
 	base_col = mix(base_col, base_col * vec3(1.18, 1.08, 0.72), dryness * 0.55);
 	base_col = mix(base_col, base_col * vec3(0.82, 0.95, 0.80), smoothstep(0.45, 0.15, mid) * 0.45);
-	// Hver tust litt ulik i farge
+	// Each tuft slightly different in color
 	base_col *= mix(vec3(0.9, 1.0, 0.85), vec3(1.1, 1.02, 0.9), INSTANCE_CUSTOM.a);
 	base_col = mix(base_col, base_col * vec3(1.35, 1.05, 0.55), season_leaf_tint.a * 0.6);
 	base_col *= 1.0 - wetness * 0.2;
@@ -84,21 +84,21 @@ void vertex() {
 
 void fragment() {
 	if (v_hide > 0.5) discard;
-	// Mørk ved roten (tett gress skygger for seg selv), lys og gulgrønn mot tuppen
+	// Dark at the root (dense grass shades itself), light and yellow-green towards the tip
 	float ao = mix(0.6, 1.0, smoothstep(0.0, 0.6, tip));
-	// Tuppene lysere og varmere (sollys og blomstring), ikke mer mettet grønne
+	// Tips lighter and warmer (sunlight and flowering), not more saturated green
 	vec3 tipc = base_col * vec3(1.22, 1.16, 0.88) + vec3(0.03, 0.026, 0.006);
 	vec3 col = mix(base_col * 0.9, tipc, smoothstep(0.2, 1.0, tip)) * ao;
 	col *= 0.9 + v_rnd * 0.2;
-	// Enkelte visne strå (halm) innimellom, flere der enga er tørr
+	// A few withered blades (straw) here and there, more where the meadow is dry
 	float dry = step(0.9 - dryness * 0.25, fract(v_rnd * 13.7));
 	col = mix(col, vec3(0.36, 0.3, 0.17) * ao * (0.8 + tip * 0.5), dry * 0.85);
-	// Dempet metning: naturlig eng, ikke plenmaling
+	// Muted saturation: natural meadow, not lawn paint
 	float lum = dot(col, vec3(0.3, 0.59, 0.11));
 	col = mix(vec3(lum), col, 0.74);
-	// Kastene lyser opp gresset (strå vender undersiden mot lyset)
+	// Gusts brighten the grass (blades turn their undersides to the light)
 	col *= 1.0 + v_gust * wind_strength * 0.25 * tip;
-	// Litt mørkere kanter på strået
+	// Slightly darker blade edges
 	col *= 1.0 - pow(abs(UV.x - 0.5) * 2.0, 3.0) * 0.15;
 	ALBEDO = col * cloud_shade(VERTEX, INV_VIEW_MATRIX);
 	ROUGHNESS = mix(0.75, 0.45, wetness);

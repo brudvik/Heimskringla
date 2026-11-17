@@ -1,5 +1,5 @@
-# Isolert test: virker decals på standardmateriale vs. terrengshaderen?
-# Kjør: godot --path . --script scripts/godot/decal_test.gd -- <utfil.png>
+# Isolated test: do decals work on a standard material vs. the terrain shader?
+# Run: godot --path . --script scripts/godot/decal_test.gd -- <outfile.png>
 extends SceneTree
 
 var frames := 0

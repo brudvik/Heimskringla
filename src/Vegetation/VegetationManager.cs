@@ -7,9 +7,9 @@ using Heimskringla.Gameplay;
 namespace Heimskringla.Vegetation;
 
 /// <summary>
-/// Strømmer vegetasjon i 128 m-celler rundt spilleren. Alt tegnes med MultiMesh (billig).
-/// Objekter nær spilleren "forfremmes" til ekte noder med kollisjon og høsting,
-/// og skjules i MultiMeshen så lenge de er forfremmet.
+/// Streams vegetation in 128 m cells around the player. Everything is drawn with MultiMesh (cheap).
+/// Objects near the player are "promoted" to real nodes with collision and harvesting,
+/// and hidden in the MultiMesh as long as they are promoted.
 /// </summary>
 public partial class VegetationManager : Node3D
 {
@@ -41,7 +41,7 @@ public partial class VegetationManager : Node3D
 
     public int CellCount => _cells.Count;
 
-    /// <summary>Nærmeste genererte instans (også ikke-forfremmede) som passer (autotest/feilsøking).</summary>
+    /// <summary>Nearest generated instance (including non-promoted ones) that matches (autotest/debugging).</summary>
     public PropInstance FindNearest(Vector3 p, Func<PropInstance, bool> ok)
     {
         PropInstance best = null; float bd = float.MaxValue;
@@ -59,7 +59,7 @@ public partial class VegetationManager : Node3D
         }
         return best;
     }
-    /// <summary>Fjerner alle celler, så de bygges på nytt (etter at en lagring er lastet: felte trær).</summary>
+    /// <summary>Removes all cells so they are rebuilt (after a save has been loaded: felled trees).</summary>
     public void Rebuild()
     {
         foreach (var cell in new List<VegCell>(_cells.Values)) RemoveCell(cell);
@@ -168,7 +168,7 @@ public partial class VegetationManager : Node3D
                 cell.Mmi[k][v] = mmi;
             }
         }
-        // Stubber etter trær som er felt tidligere (fra lagring)
+        // Stumps of trees felled earlier (from the save)
         foreach (var list in lists)
             foreach (var inst in list)
                 if (inst.Removed && PropLibrary.Defs[(int)inst.Kind].Role == PropRole.Tree)
@@ -232,7 +232,7 @@ public partial class VegetationManager : Node3D
         _cells.Remove((cell.X, cell.Z));
     }
 
-    // ------------------------------------------------------------ Forfremming
+    // ------------------------------------------------------------ Promotion
 
     private void UpdatePromotion()
     {
@@ -291,7 +291,7 @@ public partial class VegetationManager : Node3D
             SlotFor(cell, inst)?.Multimesh.SetInstanceTransform(inst.MmIndex, inst.Transform);
     }
 
-    /// <summary>Kalles når et objekt er høstet/plukket. Noden fjerner seg selv.</summary>
+    /// <summary>Called when an object has been harvested/picked up. The node removes itself.</summary>
     private void AddStump(VegCell cell, PropInstance inst)
     {
         var mesh = inst.Cold ? PropLibrary.StumpSnowMesh : PropLibrary.StumpMesh;

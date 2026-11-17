@@ -7,15 +7,15 @@ using Heimskringla.UI;
 namespace Heimskringla.Gameplay;
 
 /// <summary>
-/// Bål: steinring med ved, flammer, gnister, røyk som driver med vinden og et flakkende lys.
-/// Brenner så lenge det har ved; [E] legger på mer (tømmer eller grein). Regn får det til å brenne fortere ned.
+/// Campfire: stone ring with firewood, flames, sparks, smoke drifting with the wind and a flickering light.
+/// Burns as long as it has fuel; [E] adds more (timber or branch). Rain makes it burn down faster.
 /// </summary>
 public partial class Campfire : StaticBody3D, IInteractable
 {
     public const int CostBranches = 3, CostStones = 5;
     public static readonly List<Campfire> All = new();
 
-    public float Fuel = 150f;        // sekunder igjen
+    public float Fuel = 150f;        // seconds left
     private const float MaxFuel = 900f;
 
     private OmniLight3D _light;
@@ -72,7 +72,7 @@ public partial class Campfire : StaticBody3D, IInteractable
         _sparks = MakeSparks();
         _smoke = MakeSmoke();
         _embers = MakeEmbers();
-        // Knitring (prosedyrisk lyd, 3D)
+        // Crackling (procedural sound, 3D)
         var gen = new AudioStreamGenerator { MixRate = 22050, BufferLength = 0.2f };
         _sound = new AudioStreamPlayer3D { Stream = gen, UnitSize = 3f, MaxDistance = 40f, Position = new Vector3(0, 0.5f, 0), VolumeDb = -2f };
         AddChild(_sound);
@@ -91,11 +91,11 @@ public partial class Campfire : StaticBody3D, IInteractable
         float dt = (float)delta;
         _t += dt;
         var wx = Weather.Current;
-        // Regn og vind får bålet til å brenne fortere
+        // Rain and wind make the fire burn faster
         float burn = 1f + (wx != null && !wx.PrecipIsSnow ? wx.Precip * 1.5f : 0f) + (wx?.Wind ?? 0f) * 0.5f;
         if (Burning) Fuel = Mathf.Max(0f, Fuel - dt * burn);
 
-        // Styrke: blusser opp når det er mye ved, dør ut sakte de siste 30 sekundene
+        // Intensity: flares up when there is plenty of fuel, dies down slowly over the last 30 seconds
         float strength = Mathf.Clamp(Fuel / 30f, 0f, 1f) * Mathf.Lerp(0.85f, 1.15f, Mathf.Clamp(Fuel / MaxFuel, 0f, 1f));
         _flick = _noise.GetNoise1D(_t * 10f) * 0.5f + _noise.GetNoise1D(_t * 37f + 100f) * 0.25f;
         _light.LightEnergy = strength * (2.4f + _flick * 1.1f) + (1f - strength) * 0.15f * (Fuel > 0 ? 1 : 0);
@@ -134,9 +134,9 @@ public partial class Campfire : StaticBody3D, IInteractable
         for (int i = 0; i < n; i++)
         {
             float w = (float)_arng.NextDouble() * 2f - 1f;
-            _hiss += (w - _hiss) * 0.08f;                       // lavt brus fra flammene
+            _hiss += (w - _hiss) * 0.08f;                       // low roar from the flames
             _roar = Mathf.Clamp(_roar + w * 0.01f, -1f, 1f) * 0.995f;
-            // Knepp: tilfeldige korte smell med raskt fall
+            // Pops: random short cracks with a fast decay
             if (_arng.NextDouble() < 0.0009 * strength)
             {
                 _popEnv = 0.5f + (float)_arng.NextDouble() * 0.5f;
@@ -151,7 +151,7 @@ public partial class Campfire : StaticBody3D, IInteractable
         _pb.PushBuffer(buf);
     }
 
-    // ------------------------------------------------------------ Partikler
+    // ------------------------------------------------------------ Particles
     private static GradientTexture1D Grad(params (float t, Color c)[] stops)
     {
         var offs = new float[stops.Length];
@@ -195,7 +195,7 @@ public partial class Campfire : StaticBody3D, IInteractable
             TurbulenceInfluenceMin = 0.05f, TurbulenceInfluenceMax = 0.12f,
         };
         var mat = Additive(Weather.SoftDot(32));
-        // HDR-lysstyrke så glow plukker opp flammene
+        // HDR brightness so glow picks up the flames
         mat.AlbedoColor = new Color(1.1f, 0.85f, 0.65f);
         return new GpuParticles3D
         {
@@ -213,7 +213,7 @@ public partial class Campfire : StaticBody3D, IInteractable
 
     private static GpuParticles3D MakeEmbers()
     {
-        // Gløden nede i bålet (lav, rolig)
+        // The glow down in the fire (low, calm)
         var pm = new ParticleProcessMaterial
         {
             EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Sphere,

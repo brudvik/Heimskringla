@@ -3,10 +3,10 @@ using Godot;
 namespace Heimskringla.World;
 
 /// <summary>
-/// Legger grovkartet ut som en global shadertekstur (world_map), så shaderne kan slå opp
-/// klima og vann for et hvilket som helst punkt:
-///   r = temperatur (0..1), g = terrenghøyde / 100 m, b/a = strømretning*fart for elver (m/s, xz).
-/// Oppslag: uv = (xz - world_rect.xy) * world_rect.zw
+/// Publishes the coarse map as a global shader texture (world_map), so shaders can look up
+/// climate and water for any point:
+///   r = temperature (0..1), g = terrain height / 100 m, b/a = flow direction*speed for rivers (m/s, xz).
+/// Lookup: uv = (xz - world_rect.xy) * world_rect.zw
 /// </summary>
 public static class WorldTexture
 {
@@ -26,13 +26,13 @@ public static class WorldTexture
         var img = Image.CreateFromData(n, n, false, Image.Format.Rgbaf, data);
         img.Convert(Image.Format.Rgbah);
         var tex = ImageTexture.CreateFromImage(img);
-        // Teksturpiksel k ligger midt i texel k; gridpunkt i ligger på x = -Half + i*Cell.
-        // Forskyv et halvt texel så bilineær sampling treffer gridpunktene nøyaktig.
+        // Texture pixel k sits at the center of texel k; grid point i is at x = -Half + i*Cell.
+        // Shift by half a texel so bilinear sampling hits the grid points exactly.
         float size = n * WorldSettings.CellSize;
         float min = -WorldSettings.HalfSize - WorldSettings.CellSize * 0.5f;
         RenderingServer.GlobalShaderParameterSet("world_map", tex);
 
-        // world_masks: r = renner (0..1), g = krumning (0.5 = flatt, >0.5 søkk, <0.5 rygg), b = bergmaske
+        // world_masks: r = gullies (0..1), g = curvature (0.5 = flat, >0.5 hollow, <0.5 ridge), b = rock mask
         var mdata = new byte[n * n * 4];
         for (int k = 0; k < n * n; k++)
         {

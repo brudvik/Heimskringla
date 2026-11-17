@@ -8,9 +8,9 @@ namespace Heimskringla.Environment;
 public enum WeatherKind { Clear, Cloudy, Overcast, Rain, Storm, Fog, Broken }
 
 /// <summary>
-/// Vær og årstider. Velger nytt vær med jevne mellomrom (påvirket av årstiden), glir mykt mellom
-/// tilstandene og setter globale shader-parametre for vind, snø, løvfarge og våthet.
-/// Nedbøren (regn/snø) er partikler som følger kameraet. DayNight leser skydekke, mørke og tåke herfra.
+/// Weather and seasons. Picks new weather at regular intervals (influenced by the season), blends smoothly between
+/// states and sets global shader parameters for wind, snow, foliage color and wetness.
+/// Precipitation (rain/snow) is particles that follow the camera. DayNight reads cloud cover, darkness and fog from here.
 /// </summary>
 public partial class Weather : Node3D
 {
@@ -19,14 +19,14 @@ public partial class Weather : Node3D
 
     public static Weather Current;
     public WeatherKind Kind = WeatherKind.Cloudy;
-    public bool Locked;                     // autotest/debug: ikke bytt vær av seg selv
+    public bool Locked;                     // autotest/debug: don't change weather on its own
 
-    // Nåverdier (glir mot målet)
+    // Current values (glide toward the target)
     public float Clouds = 0.45f, Dark, Wind = 0.3f, Precip, Fog, Lightning;
     public float Wetness, SnowAccum;
     public bool PrecipIsSnow;
     public Vector2 WindDir = new(0.8f, 0.6f);
-    public float Flash;                     // lynglimt 0..1 (DayNight legger det på lyset)
+    public float Flash;                     // lightning flash 0..1 (DayNight adds it to the lighting)
 
     private float _windAngle = 0.64f, _windAngleTarget = 0.64f;
     private float _timer = 120f;
@@ -47,7 +47,7 @@ public partial class Weather : Node3D
         WeatherKind.Rain => new Target { Clouds = 0.97f, Dark = 0.62f, Wind = 0.55f, Precip = 0.7f, Fog = 0.35f },
         WeatherKind.Storm => new Target { Clouds = 1f, Dark = 0.82f, Wind = 1f, Precip = 1f, Fog = 0.4f, Lightning = 1f },
         WeatherKind.Fog => new Target { Clouds = 0.6f, Dark = 0.3f, Wind = 0.06f, Fog = 1f },
-        // Skiftende: store, drivende skyer med sol imellom (lyset som bryter gjennom og vandrer)
+        // Broken: large, drifting clouds with sun in between (light breaking through and moving across)
         WeatherKind.Broken => new Target { Clouds = 0.66f, Dark = 0.14f, Wind = 0.45f, Fog = 0.05f },
         _ => new Target(),
     };
@@ -66,17 +66,17 @@ public partial class Weather : Node3D
 
     public string Description => Label(Kind, PrecipIsSnow);
 
-    // ------------------------------------------------------------ Årstider
-    /// <summary>0..1 gjennom året, 0 = vårjevndøgn, 0.25 = sommersolverv, 0.5 = høst, 0.75 = vintersolverv.</summary>
+    // ------------------------------------------------------------ Seasons
+    /// <summary>0..1 through the year, 0 = spring equinox, 0.25 = summer solstice, 0.5 = autumn, 0.75 = winter solstice.</summary>
     public float YearT => Mathf.PosMod((_dn.Day + _dn.TimeOfDay) / (4f * DaysPerSeason), 1f);
     public int Season => (int)(YearT * 4f) % 4;
     public string SeasonName => SeasonNames[Season];
     public int DayOfSeason => _dn.Day % DaysPerSeason + 1;
 
-    /// <summary>Temperaturtillegg for årstiden (topp midt på sommeren, bunn midt på vinteren).</summary>
+    /// <summary>Temperature offset for the season (peak in midsummer, lowest in midwinter).</summary>
     public float SeasonTemp => 0.32f * Mathf.Sin(Mathf.Tau * (YearT - 0.125f));
 
-    /// <summary>Temperaturen snøen ligger ned til nå (årstid + nysnø). 0 = bare permanent snø.</summary>
+    /// <summary>The temperature down to which snow currently lies (season + fresh snow). 0 = permanent snow only.</summary>
     public float SnowLine => Mathf.Max(0f, 0.1f - SeasonTemp * 1.6f) + SnowAccum;
 
     public override void _Ready()
@@ -84,12 +84,12 @@ public partial class Weather : Node3D
         Current = this;
         _dn = GetParent<Node>().GetNode<DayNight>("DayNight");
         _rng.Seed = (ulong)Main.Seed * 7919UL + 13UL;
-        if (OS.GetEnvironment("HK_NOPRECIP") == "1") { Apply(0f, true); return; }   // testbryter
+        if (OS.GetEnvironment("HK_NOPRECIP") == "1") { Apply(0f, true); return; }   // test switch
         _rain = MakeRain();
         _snow = MakeSnow();
         AddChild(_rain);
         AddChild(_snow);
-        // Regn og snø stopper på bakken, trær og tak rundt kameraet
+        // Rain and snow stop on the ground, trees and roofs around the camera
         _collider = new GpuParticlesCollisionHeightField3D
         {
             Name = "PrecipCollision",
@@ -104,7 +104,7 @@ public partial class Weather : Node3D
 
     public override void _ExitTree() { if (Current == this) Current = null; }
 
-    /// <summary>Setter vær direkte (debug/autotest), med umiddelbar overgang hvis snap.</summary>
+    /// <summary>Sets the weather directly (debug/autotest), with an immediate transition if snap.</summary>
     public void Set(WeatherKind k, bool snap = false)
     {
         Kind = k;
@@ -130,16 +130,16 @@ public partial class Weather : Node3D
     private WeatherKind PickNext()
     {
         int s = Season;
-        // Vekter: klart, lettskyet, overskyet, nedbør, storm, tåke, skiftende.
-        // Norsk vær: sjelden blå himmel hele dagen, ofte skiftende med lys som bryter gjennom.
+        // Weights: clear, partly cloudy, overcast, precipitation, storm, fog, broken.
+        // Norwegian weather: rarely blue sky all day, often changeable with light breaking through.
         float[] w = s switch
         {
-            0 => new[] { 2f, 3.5f, 3f, 2.5f, 0.4f, 1.2f, 4f },   // vår
-            1 => new[] { 3.5f, 4f, 2f, 1.8f, 0.6f, 0.7f, 4.5f }, // sommer
-            2 => new[] { 1.2f, 2.5f, 4f, 3.5f, 1.2f, 2f, 3.5f }, // høst
-            _ => new[] { 2.5f, 2f, 4f, 3.5f, 1f, 1f, 2f },       // vinter
+            0 => new[] { 2f, 3.5f, 3f, 2.5f, 0.4f, 1.2f, 4f },   // spring
+            1 => new[] { 3.5f, 4f, 2f, 1.8f, 0.6f, 0.7f, 4.5f }, // summer
+            2 => new[] { 1.2f, 2.5f, 4f, 3.5f, 1.2f, 2f, 3.5f }, // autumn
+            _ => new[] { 2.5f, 2f, 4f, 3.5f, 1f, 1f, 2f },       // winter
         };
-        // Litt "hukommelse": samme vær igjen er mindre sannsynlig, nabotilstander mer
+        // A little "memory": the same weather again is less likely, neighboring states more likely
         w[(int)Kind] *= 0.4f;
         float sum = 0f;
         foreach (var x in w) sum += x;
@@ -155,44 +155,44 @@ public partial class Weather : Node3D
     private void Apply(float dt, bool snap)
     {
         var t = For(Kind);
-        // Været lever også innenfor samme type: skydekke og mørke svinger langsomt (skyene
-        // tetner og letter over minutter), mest i de "mellomste" værtypene
+        // The weather also varies within the same type: cloud cover and darkness fluctuate slowly (clouds
+        // thicken and clear over minutes), mostly in the "middle" weather types
         _drift += dt;
         float sway = Mathf.Sin(_drift * 0.0061f + 1.3f) * Mathf.Sin(_drift * 0.0023f) + 0.35f * Mathf.Sin(_drift * 0.017f);
         float room = Kind is WeatherKind.Storm or WeatherKind.Rain ? 0.04f : Kind == WeatherKind.Clear ? 0.1f : 0.16f;
         t.Clouds = Mathf.Clamp(t.Clouds + sway * room, 0f, 1f);
         t.Dark = Mathf.Clamp(t.Dark + sway * room * 0.5f, 0f, 1f);
-        float k = snap ? 1f : 1f - Mathf.Exp(-dt / 25f);       // ~25 s tidskonstant
+        float k = snap ? 1f : 1f - Mathf.Exp(-dt / 25f);       // ~25 s time constant
         Clouds = Mathf.Lerp(Clouds, t.Clouds, k);
         Dark = Mathf.Lerp(Dark, t.Dark, k);
         Wind = Mathf.Lerp(Wind, t.Wind, k);
         Fog = Mathf.Lerp(Fog, t.Fog, k);
         Lightning = Mathf.Lerp(Lightning, t.Lightning, k);
-        // Nedbøren venter til skyene er tette nok
+        // Precipitation waits until the clouds are dense enough
         float precipTarget = t.Precip * Biomes.SmoothStep(0.75f, 0.92f, Clouds);
         Precip = Mathf.Lerp(Precip, precipTarget, snap ? 1f : 1f - Mathf.Exp(-dt / 12f));
 
-        // Vindretningen dreier sakte
+        // The wind direction turns slowly
         if (_rng.Randf() < dt * 0.01f) _windAngleTarget += _rng.RandfRange(-1.2f, 1.2f);
         _windAngle = Mathf.Lerp(_windAngle, _windAngleTarget, 1f - Mathf.Exp(-dt / 40f));
         WindDir = new Vector2(Mathf.Cos(_windAngle), Mathf.Sin(_windAngle));
 
-        // Temperatur der spilleren er: avgjør regn eller snø
+        // Temperature where the player is: decides rain or snow
         var p = Game.Focus;
         float localTemp = Game.World != null ? Game.World.GetTemp(p.X, p.Z) : 0.5f;
         float eff = localTemp + SeasonTemp;
         PrecipIsSnow = localTemp < SnowLine + 0.03f;
 
-        // Våthet og snø som legger seg
+        // Wetness and accumulating snow
         float snowing = PrecipIsSnow ? Precip : 0f, raining = PrecipIsSnow ? 0f : Precip;
         Wetness = Mathf.Clamp(Wetness + (raining * 0.08f - (1f - raining) * 0.006f * (1f + (1f - Clouds) * 2f)) * dt, 0f, 1f);
         SnowAccum = Mathf.Clamp(SnowAccum + (snowing * 0.004f - (eff > 0.45f ? 0.003f : 0.0004f)) * dt, 0f, 0.25f);
 
-        // Årstid -> globale parametre
+        // Season -> global parameters
         float y = YearT;
         float autumn = y > 0.5f ? Biomes.SmoothStep(0.56f, 0.68f, y) : 0f;
         float drop = y > 0.5f ? Biomes.SmoothStep(0.68f, 0.78f, y) : 1f - Biomes.SmoothStep(0.0f, 0.07f, y);
-        // Snølinje = temperaturen snøen går ned til. Vinter: langt sørover; sommer: ingen ekstra snø.
+        // Snow line = the temperature down to which snow reaches. Winter: far south; summer: no extra snow.
         float snowLine = SnowLine;
         RenderingServer.GlobalShaderParameterSet("wind_dir", WindDir);
         RenderingServer.GlobalShaderParameterSet("wind_strength", Wind);
@@ -202,7 +202,7 @@ public partial class Weather : Node3D
         RenderingServer.GlobalShaderParameterSet("snow_line", snowLine);
         RenderingServer.GlobalShaderParameterSet("wetness", Wetness);
 
-        // Lyn
+        // Lightning
         Flash = Mathf.Max(0f, Flash - dt * 4f);
         if (Lightning > 0.5f && Precip > 0.5f)
         {
@@ -211,7 +211,7 @@ public partial class Weather : Node3D
             {
                 Flash = 1f;
                 _lightningTimer = _rng.RandfRange(4f, 16f);
-                // Dobbeltglimt av og til
+                // Occasional double flash
                 if (_rng.Randf() < 0.4f) GetTree().CreateTimer(0.18f).Timeout += () => Flash = 0.8f;
             }
         }
@@ -219,13 +219,13 @@ public partial class Weather : Node3D
         UpdateParticles();
     }
 
-    // ------------------------------------------------------------ Nedbør
+    // ------------------------------------------------------------ Precipitation
     private void UpdateParticles()
     {
         var cam = GetViewport()?.GetCamera3D();
         if (cam == null || _rain == null) return;
         var cp = cam.GlobalPosition;
-        // Partiklene simuleres i verdensrom; emitteren flyttes med kameraet
+        // Particles are simulated in world space; the emitter moves with the camera
         _rain.GlobalPosition = cp + new Vector3(WindDir.X, 0, WindDir.Y) * Wind * 6f + Vector3.Up * 14f;
         _snow.GlobalPosition = cp + Vector3.Up * 10f;
         float rain = PrecipIsSnow ? 0f : Precip;
@@ -259,7 +259,7 @@ public partial class Weather : Node3D
             AlbedoColor = new Color(0.75f, 0.8f, 0.88f, 0.28f),
             VertexColorUseAsAlbedo = false,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            // Dråper helt inntil kameraet blir enorme striper; tone dem ut
+            // Drops right next to the camera become huge streaks; fade them out
             DistanceFadeMode = BaseMaterial3D.DistanceFadeModeEnum.PixelAlpha,
             DistanceFadeMinDistance = 1.5f,
             DistanceFadeMaxDistance = 5f,
@@ -330,7 +330,7 @@ public partial class Weather : Node3D
         };
     }
 
-    /// <summary>Liten myk, rund prikk (snøfnugg).</summary>
+    /// <summary>Small soft round dot (snowflake).</summary>
     public static Texture2D SoftDot(int size = 16)
     {
         var img = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);

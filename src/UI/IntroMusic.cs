@@ -4,8 +4,8 @@ using Godot;
 namespace Heimskringla.UI;
 
 /// <summary>
-/// Langsom, mørk klangflate til menyen: d-moll med kvint og oktav (detunede sagtenner, lavpass
-/// som puster), en dyp grunntone, og innimellom et fjernt "lurhorn" (lav kvint som svulmer).
+/// Slow, dark pad for the menu: D minor with fifth and octave (detuned saws, breathing
+/// low-pass), a deep root note, and now and then a distant "lur horn" (low swelling fifth).
 /// </summary>
 public partial class IntroMusic : Node
 {
@@ -19,7 +19,7 @@ public partial class IntroMusic : Node
     private float _chordT;
     private readonly Random _rng = new(7);
 
-    // Akkorder (Hz, grunntone + tre stemmer): Dm, Bb, F, C — rolig nordisk sekvens
+    // Chords (Hz, root + three voices): Dm, Bb, F, C — calm Nordic progression
     private static readonly float[][] Chords =
     {
         new[] { 73.42f, 146.83f, 174.61f, 220.00f },
@@ -54,7 +54,7 @@ public partial class IntroMusic : Node
             _chordT += dt;
             if (_chordT > 11f) { _chordT = 0f; _chord = (_chord + 1) % Chords.Length; }
             var target = Chords[_chord];
-            for (int v = 0; v < 4; v++) _freq[v] += (target[v] - _freq[v]) * 0.00004f;   // langsom glid mellom akkordene
+            for (int v = 0; v < 4; v++) _freq[v] += (target[v] - _freq[v]) * 0.00004f;   // slow glide between chords
 
             float l = 0f, r = 0f;
             for (int v = 0; v < 4; v++)
@@ -72,14 +72,14 @@ public partial class IntroMusic : Node
                     r += saw * amp * (1f + pan * 0.5f);
                 }
             }
-            // Lavpass som "puster" sakte (åpner og lukker seg over ~14 s)
+            // Low-pass that slowly "breathes" (opens and closes over ~14 s)
             float cut = 380f + 260f * (0.5f + 0.5f * Mathf.Sin((float)_t * 0.45f));
             float a = 1f - Mathf.Exp(-Mathf.Tau * cut / Rate);
             _lp1 += (l - _lp1) * a;
             _lp2 += (r - _lp2) * a;
             float sl = _lp1, sr = _lp2;
 
-            // Fjernt lurhorn: en lav tone som svulmer og dør ut, av og til
+            // Distant lur horn: a low tone that swells and fades, every now and then
             _nextHorn -= dt;
             if (_nextHorn <= 0f && _hornT < 0f) { _hornT = 0f; _nextHorn = 18f + (float)_rng.NextDouble() * 14f; }
             if (_hornT >= 0f)

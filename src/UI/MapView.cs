@@ -3,7 +3,7 @@ using Godot;
 
 namespace Heimskringla.UI;
 
-/// <summary>Verdenskart generert fra grovkartet. Klikk for å teleportere.</summary>
+/// <summary>World map generated from the coarse map. Click to teleport.</summary>
 public partial class MapView : Control
 {
     public Texture2D Texture;

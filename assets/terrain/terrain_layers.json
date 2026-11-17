@@ -1,7 +1,7 @@
 [
   {
     "id": "Grass004",
-    "name": "eng",
+    "name": "meadow",
     "mean_linear": [
       0.1188,
       0.1527,
@@ -10,7 +10,7 @@
   },
   {
     "id": "Ground037",
-    "name": "lauvskogbunn",
+    "name": "deciduous forest floor",
     "mean_linear": [
       0.3177,
       0.2925,
@@ -19,7 +19,7 @@
   },
   {
     "id": "Ground071",
-    "name": "barskogbunn",
+    "name": "conifer forest floor",
     "mean_linear": [
       0.2207,
       0.135,
@@ -28,7 +28,7 @@
   },
   {
     "id": "Ground068",
-    "name": "lynghei/myr/jord",
+    "name": "heath/bog/soil",
     "mean_linear": [
       0.1627,
       0.1068,
@@ -37,7 +37,7 @@
   },
   {
     "id": "Rock030",
-    "name": "berg",
+    "name": "rock",
     "mean_linear": [
       0.0799,
       0.0745,
@@ -46,7 +46,7 @@
   },
   {
     "id": "Gravel041",
-    "name": "ur/grus",
+    "name": "scree/gravel",
     "mean_linear": [
       0.2706,
       0.2605,
@@ -64,7 +64,7 @@
   },
   {
     "id": "Snow010A",
-    "name": "snø",
+    "name": "snow",
     "mean_linear": [
       0.7358,
       0.8597,

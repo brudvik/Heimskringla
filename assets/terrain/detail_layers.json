@@ -1,7 +1,7 @@
 [
   {
     "id": "Bark014",
-    "name": "bark (gran/furu)",
+    "name": "bark (spruce/pine)",
     "mean_linear": [
       0.1939,
       0.135,
@@ -10,7 +10,7 @@
   },
   {
     "id": "Bark012",
-    "name": "bark (løvtre)",
+    "name": "bark (deciduous)",
     "mean_linear": [
       0.2548,
       0.1934,
@@ -19,7 +19,7 @@
   },
   {
     "id": "Moss002",
-    "name": "mose",
+    "name": "moss",
     "mean_linear": [
       0.0694,
       0.1329,

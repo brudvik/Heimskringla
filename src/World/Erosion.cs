@@ -4,9 +4,9 @@ using System.Collections.Generic;
 namespace Heimskringla.World;
 
 /// <summary>
-/// Erosjon på grovkartet. Hydraulisk erosjon med vanndråper (etter Hans Theobald Beyer, 2015)
-/// gir raviner, rygger og vifter av avsatt materiale; termisk erosjon raser ut for bratte skrenter.
-/// Deterministisk for et gitt seed.
+/// Erosion on the coarse map. Droplet-based hydraulic erosion (after Hans Theobald Beyer, 2015)
+/// produces ravines, ridges and fans of deposited material; thermal erosion slumps overly steep cliffs.
+/// Deterministic for a given seed.
 /// </summary>
 public static class Erosion
 {
@@ -22,17 +22,17 @@ public static class Erosion
         public float EvaporateSpeed = 0.015f;
         public float Gravity = 4f;
         public int Radius = 3;
-        /// <summary>Høyder deles på denne før erosjon, slik at helning blir "meter per meter".</summary>
+        /// <summary>Heights are divided by this before erosion, so slope becomes "meters per meter".</summary>
         public float HeightScale = 10f;
     }
 
-    /// <summary>Kjører hydraulisk erosjon på et N×N-kart (meter). Dråper starter bare over havet.</summary>
+    /// <summary>Runs hydraulic erosion on an N×N map (meters). Droplets only start above sea level.</summary>
     public static void Hydraulic(float[] map, int n, int seed, Settings s, Action<float> progress = null)
     {
         float inv = 1f / s.HeightScale;
         for (int i = 0; i < map.Length; i++) map[i] *= inv;
 
-        // Pensel: celler innenfor radius med vekter som summerer til 1
+        // Brush: cells within the radius, with weights summing to 1
         var offsets = new List<int>();
         var weights = new List<float>();
         float wsum = 0f;
@@ -77,7 +77,7 @@ public static class Erosion
 
                 HeightGradient(map, n, px, py, out float newH, out _, out _);
                 float dh = newH - h;
-                if (newH <= 0f && h <= 0f) break; // nådd havet
+                if (newH <= 0f && h <= 0f) break; // reached the sea
                 float capacity = MathF.Max(-dh * speed * water * s.CapacityFactor, s.MinCapacity);
 
                 if (sediment > capacity || dh > 0f)
@@ -119,15 +119,15 @@ public static class Erosion
     }
 
     /// <summary>
-    /// Termisk erosjon: der høydeforskjellen til en nabo overstiger talus (meter per celle),
-    /// flyttes masse nedover. Fjerner urealistisk loddrette vegger.
+    /// Thermal erosion: where the height difference to a neighbor exceeds talus (meters per cell),
+    /// material is moved downhill. Removes unrealistically vertical walls.
     /// </summary>
     public static void Thermal(float[] map, int n, float talus, int iterations, float rate = 0.25f)
     {
         int[] nb = { -1, 1, -n, n };
         for (int it = 0; it < iterations; it++)
         {
-            // Annenhver retning for å unngå skjevhet
+            // Alternate direction to avoid bias
             bool rev = (it & 1) == 1;
             for (int jj = 1; jj < n - 1; jj++)
             {

@@ -5,8 +5,8 @@ using Heimskringla.Core;
 namespace Heimskringla.Terrain;
 
 /// <summary>
-/// Kollisjon kun nær spilleren: et 5x5-rutenett av 64 m høydekart (1 m oppløsning)
-/// rundt fokuspunktet. Sampler samme høydefunksjon som LOD0-meshet.
+/// Collision only near the player: a 5x5 grid of 64 m heightmaps (1 m resolution)
+/// around the focus point. Samples the same height function as the LOD0 mesh.
 /// </summary>
 public partial class CollisionManager : Node3D
 {
@@ -22,11 +22,11 @@ public partial class CollisionManager : Node3D
 
     private static (int, int) CellOf(Vector3 p) => (Mathf.FloorToInt(p.X / Size), Mathf.FloorToInt(p.Z / Size));
 
-    /// <summary>Bygger manglende kollisjon. maxBuild &lt; 0 bygger alt med en gang (teleport).</summary>
+    /// <summary>Builds missing collision. maxBuild &lt; 0 builds everything at once (teleport).</summary>
     public void UpdateAround(Vector3 p, int maxBuild)
     {
         var (cx, cz) = CellOf(p);
-        // Bygg nærmeste først
+        // Build nearest first
         int built = 0;
         for (int r = 0; r <= Radius; r++)
         for (int dz = -r; dz <= r; dz++)

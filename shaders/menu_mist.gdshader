@@ -1,6 +1,6 @@
 shader_type canvas_item;
 
-// Stemning over menybildet: tåke som driver sakte, svake lysstråler ovenfra, mørk vignett.
+// Atmosphere over the menu image: slowly drifting mist, faint light rays from above, dark vignette.
 
 uniform float strength = 1.0;
 uniform float time_offset = 0.0;
@@ -28,12 +28,12 @@ void fragment() {
 	vec2 uv = UV;
 	float aspect = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
 	vec2 p = vec2(uv.x * aspect, uv.y) * 3.0;
-	// To lag tåke som driver i hver sin fart (dybde)
+	// Two layers of mist drifting at different speeds (depth)
 	float f1 = fbm(p * 0.8 + vec2(t * 0.025, t * 0.004));
 	float f2 = fbm(p * 1.7 + vec2(-t * 0.04, t * 0.01) + 7.0);
 	float mist = smoothstep(0.45, 0.85, f1 * 0.6 + f2 * 0.5) * smoothstep(0.25, 0.9, uv.y);
 	vec3 col = vec3(0.82, 0.86, 0.92) * mist * 0.32;
-	// Lysstråler skrått ovenfra (fra øvre venstre)
+	// Light rays slanting down from above (from the upper left)
 	vec2 src = vec2(0.28, -0.25);
 	vec2 d = uv - src;
 	float ang = atan(d.x, d.y);
@@ -41,7 +41,7 @@ void fragment() {
 	rays = smoothstep(0.55, 0.95, rays) * smoothstep(1.3, 0.2, length(d)) * 0.16;
 	col += vec3(1.0, 0.9, 0.7) * rays;
 	float a = clamp(mist * 0.38 + rays, 0.0, 1.0);
-	// Vignett
+	// Vignette
 	float vig = smoothstep(0.35, 1.05, length((uv - 0.5) * vec2(1.25, 1.0)));
 	col = mix(col, vec3(0.0), vig);
 	a = max(a, vig * 0.75);

@@ -8,9 +8,9 @@ using Godot;
 namespace Heimskringla.Core;
 
 /// <summary>
-/// Enkel prioritetskø med egne arbeidstråder. Arbeid kjøres i bakgrunnen; resultatet leveres
-/// tilbake på hovedtråden via ProcessCompleted() med et tidsbudsjett per frame.
-/// Lavest Priority kjøres først (typisk avstand til spilleren).
+/// Simple priority queue with its own worker threads. Work runs in the background; the result is delivered
+/// back on the main thread via ProcessCompleted() with a per-frame time budget.
+/// Lowest Priority runs first (typically distance to the player).
 /// </summary>
 public sealed class JobQueue : IDisposable
 {
@@ -93,10 +93,10 @@ public sealed class JobQueue : IDisposable
         }
     }
 
-    /// <summary>Kalles fra hovedtråden. Leverer ferdige resultater innen tidsbudsjettet.</summary>
+    /// <summary>Called from the main thread. Delivers finished results within the time budget.</summary>
     public void ProcessCompleted(double budgetMs)
     {
-        while (_errors.TryDequeue(out var e)) GD.PushError($"Jobb feilet: {e}");
+        while (_errors.TryDequeue(out var e)) GD.PushError($"Job failed: {e}");
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed.TotalMilliseconds < budgetMs && _completed.TryDequeue(out var item))
         {

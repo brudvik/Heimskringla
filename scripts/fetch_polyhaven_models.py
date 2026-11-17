@@ -1,10 +1,10 @@
-"""Laster ned CC0-modeller (glTF, 1K-teksturer) fra Poly Haven til assets/polyhaven/<id>/.
+"""Downloads CC0 models (glTF, 1K textures) from Poly Haven to assets/polyhaven/<id>/.
 
-Bruk:
+Usage:
     python scripts/fetch_polyhaven_models.py [id ...]
 
-Uten argumenter lastes MODELS ned. Filer som finnes fra før hoppes over. Bare filnavn fra
-Poly Havens API brukes (stier saneres), og lisensen føres inn i assets/LICENSES.md.
+Without arguments, MODELS is downloaded. Existing files are skipped. Only file names from
+Poly Haven's API are used (paths are sanitized), and the license is recorded in assets/LICENSES.md.
 """
 import json
 import os
@@ -16,7 +16,7 @@ OUT = os.path.join(ROOT, "assets", "polyhaven")
 UA = {"User-Agent": "heimskringla-asset-script"}
 RES = "1k"
 
-# Berg og klipper til fjellsidene (se PropLibrary: Cliff)
+# Rocks and cliffs for the mountainsides (see PropLibrary: Cliff)
 MODELS = ["rock_face_01", "rock_face_02", "mountainside", "boulder_01", "rock_07", "rock_09"]
 
 
@@ -57,11 +57,11 @@ def main():
     with open(lic, "a", encoding="utf-8", newline="\n") as f:
         if "Poly Haven" not in text:
             f.write("\n## assets/polyhaven/ - Poly Haven (CC0 1.0)\n\n")
-            f.write("Modeller fra https://polyhaven.com, lisens CC0 1.0 (ingen kreditering påkrevd):\n")
+            f.write("Models from https://polyhaven.com, license CC0 1.0 (no attribution required):\n")
         for asset_id in ids:
             if f"polyhaven.com/a/{asset_id}" not in text:
                 f.write(f"- {asset_id} - https://polyhaven.com/a/{asset_id}\n")
-    print("Ferdig:", OUT)
+    print("Done:", OUT)
 
 
 if __name__ == "__main__":

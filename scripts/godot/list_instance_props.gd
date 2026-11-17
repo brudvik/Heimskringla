@@ -1,5 +1,5 @@
-# Viser egenskapene til en instans av en klasse (inkl. dynamiske), valgfritt etter å ha satt en egenskap.
-# Kjør: godot --headless --script scripts/godot/list_instance_props.gd -- <Klasse> [egenskap=verdi]
+# Shows the properties of an instance of a class (incl. dynamic ones), optionally after setting a property.
+# Run: godot --headless --script scripts/godot/list_instance_props.gd -- <Class> [property=value]
 extends SceneTree
 
 func _init():

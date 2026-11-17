@@ -7,21 +7,21 @@ using Heimskringla.World;
 namespace Heimskringla.Gameplay;
 
 /// <summary>
-/// Tredjepersons spiller: bevegelse (bakker, skliing, trinn, utholdenhet), svømming, flymodus,
-/// mykt kamera med risting, sikting og høsting.
+/// Third-person player: movement (slopes, sliding, steps, stamina), swimming, fly mode,
+/// smooth camera with shake, aiming and harvesting.
 /// </summary>
 public partial class Player : CharacterBody3D
 {
-    public const float WalkSpeed = 2.2f;     // Alt: rolig gange
+    public const float WalkSpeed = 2.2f;     // Alt: slow walk
     public const float JogSpeed = 4.6f;      // standard
-    public const float RunSpeed = 8.2f;      // Shift (bruker utholdenhet)
+    public const float RunSpeed = 8.2f;      // Shift (uses stamina)
     public const float SwimSpeed = 2.6f;
     public const float SwimFastSpeed = 4.2f;
     public const float JumpVelocity = 7.2f;
     public const float Gravity = 20f;
     public const float Reach = 3.3f;
     public const float MaxStamina = 100f;
-    private const float SlideAngle = 40f;    // grader: brattere enn dette sklir man
+    private const float SlideAngle = 40f;    // degrees: steeper than this and you slide
     private const float StepHeight = 0.45f;
 
     private Node3D _camPivot;
@@ -52,7 +52,7 @@ public partial class Player : CharacterBody3D
     public float CameraDistance { get => _armTarget; set { _armTarget = value; if (_arm != null) _arm.SpringLength = value; } }
     public float CameraYaw { get => _yaw; set => _yaw = value; }
     public float CameraPitch { get => _pitch; set => _pitch = value; }
-    /// <summary>Testhjelp (autotest): simulert WASD-input når satt.</summary>
+    /// <summary>Test helper (autotest): simulated WASD input when set.</summary>
     public Vector2? DebugInput;
 
     public override void _Ready()
@@ -61,7 +61,7 @@ public partial class Player : CharacterBody3D
         CollisionMask = Game.LayerWorld;
         FloorMaxAngle = Mathf.DegToRad(SlideAngle + 8f);
         FloorSnapLength = 0.5f;
-        FloorConstantSpeed = true;          // samme fart opp og ned bakker (vi styrer selv)
+        FloorConstantSpeed = true;          // same speed up and down slopes (we control it ourselves)
         FloorBlockOnWall = true;
 
         AddChild(new CollisionShape3D
@@ -74,7 +74,7 @@ public partial class Player : CharacterBody3D
         AddChild(_model);
         _model.Footstep += (side, pos, yaw) => Footprints.OnStep(GetParent(), side, pos, yaw);
 
-        // Kamerapivoten følger spilleren mykt (TopLevel), så ujevnt terreng ikke rister bildet
+        // The camera pivot follows the player smoothly (TopLevel), so uneven terrain does not shake the view
         _camPivot = new Node3D { TopLevel = true };
         AddChild(_camPivot);
         _camPivot.GlobalPosition = GlobalPosition + new Vector3(0, 1.65f, 0);
@@ -114,7 +114,7 @@ public partial class Player : CharacterBody3D
         {
             switch (k.PhysicalKeycode)
             {
-                case Key.Escape: break;   // Esc åpner pausemenyen (PauseMenu)
+                case Key.Escape: break;   // Esc opens the pause menu (PauseMenu)
                 case Key.E: TryInteract(); break;
                 case Key.Key1: SetTool(ToolKind.Axe); break;
                 case Key.Key2: SetTool(ToolKind.Pickaxe); break;
@@ -157,10 +157,10 @@ public partial class Player : CharacterBody3D
         if (Tool != ToolKind.Hands) UseStamina(6f);
         _swing = 0f;
         _hitDone = false;
-        _modelYaw = _yaw; // snu mot kameraretningen
+        _modelYaw = _yaw; // turn toward the camera direction
     }
 
-    /// <summary>Kamerarist (0..1). Avtar av seg selv.</summary>
+    /// <summary>Camera shake (0..1). Decays on its own.</summary>
     public void AddShake(float amount) => _shake = Mathf.Min(1f, _shake + amount);
 
     private void UseStamina(float amount)
@@ -213,7 +213,7 @@ public partial class Player : CharacterBody3D
         var v = Velocity;
         bool moving = dir.LengthSquared() > 0.01f;
 
-        // --- Utholdenhet
+        // --- Stamina
         bool sprinting = runKey && moving && !Exhausted && _swing < 0f && (onFloor || Swimming);
         if (sprinting) UseStamina((Swimming ? 14f : 11f) * dt);
         else if (Swimming && moving) UseStamina(3f * dt);
@@ -221,13 +221,13 @@ public partial class Player : CharacterBody3D
         else Stamina = Mathf.Min(MaxStamina, Stamina + (Swimming ? 4f : moving ? 14f : 22f) * dt);
         if (Exhausted && Stamina > MaxStamina * 0.3f) Exhausted = false;
 
-        // --- Ønsket fart
+        // --- Desired velocity
         float targetSpeed = Swimming ? (sprinting ? SwimFastSpeed : SwimSpeed)
                           : sprinting ? RunSpeed : walkKey ? WalkSpeed : JogSpeed;
         if (Exhausted && !Swimming) targetSpeed = Mathf.Min(targetSpeed, JogSpeed * 0.75f);
         if (_swing >= 0f) targetSpeed *= 0.35f;
 
-        // --- Bakker: saktere oppover, litt raskere nedover; for bratt = skli
+        // --- Slopes: slower uphill, slightly faster downhill; too steep = slide
         Sliding = false;
         if (onFloor && !Swimming)
         {
@@ -236,7 +236,7 @@ public partial class Player : CharacterBody3D
             var downhill = new Vector3(fn.X, 0, fn.Z);
             if (moving && downhill.LengthSquared() > 1e-4f)
             {
-                float along = dir.Normalized().Dot(downhill.Normalized());   // >0 = nedover
+                float along = dir.Normalized().Dot(downhill.Normalized());   // >0 = downhill
                 float steep = Mathf.Clamp(angle / SlideAngle, 0f, 1f);
                 targetSpeed *= along < 0f ? Mathf.Lerp(1f, 0.45f, steep * -along) : Mathf.Lerp(1f, 1.15f, steep * along);
             }
@@ -259,7 +259,7 @@ public partial class Player : CharacterBody3D
             float depth = water - (GlobalPosition.Y + 1.4f);
             v.Y += depth * 10f * dt;
             v.Y -= v.Y * 3f * dt;
-            if (Exhausted) v.Y -= 1.5f * dt;   // sliten: synker litt
+            if (Exhausted) v.Y -= 1.5f * dt;   // exhausted: sinks a little
             if (jump && !Exhausted) v.Y = Mathf.Max(v.Y, 1.5f);
         }
         else
@@ -277,12 +277,12 @@ public partial class Player : CharacterBody3D
         MoveAndSlide();
         TryStepUp(before, horiz, dt);
 
-        // Landing: rist kameraet ved hardt fall
+        // Landing: shake the camera on a hard fall
         if (IsOnFloor() && !_wasOnFloor && _fallSpeed > 9f) AddShake(Mathf.Clamp((_fallSpeed - 9f) / 12f, 0f, 0.6f));
         if (IsOnFloor()) _fallSpeed = 0f;
         _wasOnFloor = IsOnFloor();
 
-        // Sikkerhetsnett hvis kollisjonen ikke var klar
+        // Safety net if the collision was not ready
         float ground2 = w.GetHeight(GlobalPosition.X, GlobalPosition.Z);
         if (GlobalPosition.Y < ground2 - 1.5f)
         {
@@ -290,7 +290,7 @@ public partial class Player : CharacterBody3D
             Velocity = Vector3.Zero;
         }
 
-        // Modellen ser i bevegelsesretningen
+        // The model faces the direction of movement
         if (_swing < 0f && moving)
             _modelYaw = Mathf.Atan2(-dir.X, -dir.Z);
         _model.Rotation = new Vector3(0, Mathf.LerpAngle(_model.Rotation.Y, _modelYaw, Mathf.Clamp(12f * dt, 0f, 1f)), 0);
@@ -306,7 +306,7 @@ public partial class Player : CharacterBody3D
         Game.Focus = GlobalPosition;
     }
 
-    /// <summary>Klatrer opp små kanter (steiner, røtter) i stedet for å stoppe helt.</summary>
+    /// <summary>Climbs small ledges (rocks, roots) instead of stopping dead.</summary>
     private void TryStepUp(Vector3 before, Vector3 horiz, float dt)
     {
         if (!IsOnWall() || horiz.LengthSquared() < 0.25f || Swimming) return;
@@ -315,10 +315,10 @@ public partial class Player : CharacterBody3D
         if (new Vector3(moved.X, 0, moved.Z).Length() > wantMove.Length() * 0.6f) return;
         var up = new Vector3(0, StepHeight, 0);
         var from = GlobalTransform;
-        if (TestMove(from, up)) return;                              // tak over
+        if (TestMove(from, up)) return;                              // ceiling above
         var raised = from.Translated(up);
         var fwd = horiz.Normalized() * 0.3f;
-        if (TestMove(raised, fwd)) return;                           // fortsatt blokkert
+        if (TestMove(raised, fwd)) return;                           // still blocked
         GlobalPosition += up + fwd;
         ApplyFloorSnap();
     }
@@ -329,7 +329,7 @@ public partial class Player : CharacterBody3D
     public override void _Process(double delta)
     {
         float dt = (float)delta;
-        // Mykt kamera: følger raskt sideveis, roligere i høyden
+        // Smooth camera: follows quickly sideways, more gently vertically
         var target = GlobalPosition + new Vector3(0, 1.65f, 0);
         var p = _camPivot.GlobalPosition;
         float kx = 1f - Mathf.Exp(-25f * dt), ky = 1f - Mathf.Exp(-10f * dt);
@@ -338,14 +338,14 @@ public partial class Player : CharacterBody3D
         _camPivot.GlobalPosition = p;
         _camPivot.Rotation = new Vector3(_pitch, _yaw, 0);
         _arm.SpringLength = Mathf.Lerp(_arm.SpringLength, _armTarget, 1f - Mathf.Exp(-10f * dt));
-        // Løv mellom kameraet og figuren tones bort i foliage-shaderen (trekroner har ingen kollisjon)
+        // Foliage between the camera and the character is faded out in the foliage shader (tree crowns have no collision)
         RenderingServer.GlobalShaderParameterSet("player_head", GlobalPosition + new Vector3(0, 1.3f, 0));
 
-        // FOV øker litt ved sprint
+        // FOV increases slightly when sprinting
         bool sprint = Input.IsPhysicalKeyPressed(Key.Shift) && !Exhausted && Velocity.Length() > JogSpeed + 0.5f;
         _camera.Fov = Mathf.Lerp(_camera.Fov, Settings.Fov + (sprint ? 6f : 0f), 1f - Mathf.Exp(-6f * dt));
 
-        // Kamerarist
+        // Camera shake
         _shake = Mathf.Max(0f, _shake - dt * 1.8f);
         _shakeT += dt * 30f;
         float s = _shake * _shake;
@@ -387,7 +387,7 @@ public partial class Player : CharacterBody3D
         else Hud.Instance?.SetTargetHealth(null, 0f);
     }
 
-    /// <summary>Bygger et bål foran spilleren (koster greiner og stein).</summary>
+    /// <summary>Builds a campfire in front of the player (costs branches and stones).</summary>
     public Campfire BuildCampfire(bool free = false)
     {
         if (Flying || Swimming) return null;
@@ -420,7 +420,7 @@ public partial class Player : CharacterBody3D
             i.Interact(this);
             return;
         }
-        // Plukk opp det nærmeste innen rekkevidde om siktet bommer
+        // Pick up the nearest thing within reach if the aim misses
         var near = QueryNear(1.6f, Game.LayerInteract);
         foreach (var o in near)
             if (o is IInteractable ii) { _model.PlayPickup(); ii.Interact(this); return; }

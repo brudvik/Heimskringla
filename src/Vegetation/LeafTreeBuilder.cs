@@ -6,16 +6,16 @@ using Heimskringla.Core;
 namespace Heimskringla.Vegetation;
 
 /// <summary>
-/// Kodegenererte lauvtrær (bjørk og eik) i samme stil som grana (SpruceBuilder):
-/// greinstruktur (stamme, hovedgreiner, sidegreiner som avsmalnende rør) med lauvkort som har en
-/// tegnet kvist-med-blader-tekstur. Gir fillete, luftige kroner i stedet for runde "ballonger".
+/// Procedurally generated deciduous trees (birch and oak) in the same style as the spruce (SpruceBuilder):
+/// branch structure (trunk, main branches, side branches as tapered tubes) with leaf cards that have a
+/// painted twig-with-leaves texture. Gives ragged, airy crowns instead of round "balloons".
 ///
-///  - Bjørk (hengebjørk): slank, hvit stamme, greiner som går skrått opp og kvister som henger
-///    ned (høye, smale kort som henger fra greinene), lys og luftig krone.
-///  - Eik: kort, tykk stamme, brede, knudrete hovedgreiner nesten vannrett ut, tett og bred krone.
+///  - Birch (silver birch): slender white trunk, branches angled upward and twigs hanging
+///    down (tall, narrow cards hanging from the branches), light and airy crown.
+///  - Oak: short, thick trunk, broad, gnarled main branches reaching out almost horizontally, dense and wide crown.
 ///
-/// Overflate 0 = bark (bjørk: birch_bark-shaderen, eik: "Bark" → foliage-shaderens barkdetalj),
-/// overflate 1 = løv ("Leaves", alpha-kort). LOD-nivåer som indekslister (som grana).
+/// Surface 0 = bark (birch: the birch_bark shader, oak: "Bark" → the foliage shader's bark detail),
+/// surface 1 = foliage ("Leaves", alpha cards). LOD levels as index lists (like the spruce).
 /// </summary>
 public static class LeafTreeBuilder
 {
@@ -48,7 +48,7 @@ public static class LeafTreeBuilder
         return list;
     }
 
-    // ------------------------------------------------------------ Geometri
+    // ------------------------------------------------------------ Geometry
     private sealed class Geo
     {
         public readonly List<Vector3> V = new(), N = new();
@@ -65,7 +65,7 @@ public static class LeafTreeBuilder
         var wood = new Geo();
         var leaf = new Geo();
 
-        // ---- Stamme: lett buet linje
+        // ---- Trunk: slightly curved line
         float r0 = birch ? H * 0.012f : H * 0.032f;
         float trunkTop = birch ? H * 0.97f : H * 0.62f;
         var lean = new Vector3(R() - 0.5f, 0, R() - 0.5f) * (birch ? 0.6f : 0.4f);
@@ -80,7 +80,7 @@ public static class LeafTreeBuilder
         }
         Tube(wood, trunkPts, trunkR, 8, true, true, true);
 
-        // ---- Hovedgreiner
+        // ---- Main branches
         int mains = birch ? 15 : 9;
         float crownStart = birch ? 0.32f : 0.5f;
         float yaw0 = R() * Mathf.Tau;
@@ -90,11 +90,11 @@ public static class LeafTreeBuilder
             var start = TrunkAt(Mathf.Min(t, 1f));
             float yaw = yaw0 + i * 2.39996f + (R() - 0.5f) * 0.5f;
             var outDir = new Vector3(Mathf.Cos(yaw), 0, Mathf.Sin(yaw));
-            // Kroneprofil: bjørk smal og eggformet; eik bred
+            // Crown profile: birch narrow and egg-shaped; oak wide
             float rel = (t - crownStart) / (1f - crownStart);
             float len = birch ? H * 0.28f * Mathf.Sin(Mathf.Pi * Mathf.Clamp(0.25f + rel * 0.8f, 0f, 1f)) * (0.75f + R() * 0.4f) + 0.8f
                               : H * (0.42f + R() * 0.18f);
-            float up = birch ? Mathf.Lerp(0.9f, 1.6f, rel) : 0.45f + R() * 0.35f;   // stigning (y per horisontal)
+            float up = birch ? Mathf.Lerp(0.9f, 1.6f, rel) : 0.45f + R() * 0.35f;   // slope (y per horizontal)
             var dir = (outDir + Vector3.Up * up).Normalized();
             var pts = new List<Vector3>();
             var rad = new List<float>();
@@ -102,7 +102,7 @@ public static class LeafTreeBuilder
             for (int k = 0; k <= 4; k++)
             {
                 float s = k / 4f;
-                // Bjørk: tuppen bøyer utover/ned; eik: knudrete, svinger litt opp og ut
+                // Birch: the tip bends outward/down; oak: gnarled, curving slightly up and out
                 var p = start + dir * (len * s) + Vector3.Down * (birch ? len * 0.35f * s * s : len * 0.12f * s * s)
                         + new Vector3(R() - 0.5f, R() - 0.5f, R() - 0.5f) * (birch ? 0.12f : 0.5f) * s;
                 pts.Add(p);
@@ -110,7 +110,7 @@ public static class LeafTreeBuilder
             }
             Tube(wood, pts, rad, 5, i % 2 == 0, true, false);
 
-            // Sidegreiner og løv
+            // Side branches and foliage
             int subs = birch ? 3 : 5;
             for (int j = 0; j < subs; j++)
             {
@@ -126,7 +126,7 @@ public static class LeafTreeBuilder
             }
             LeafCluster(leaf, rng, pts.GetRange(2, 3), birch, outDir, i);
         }
-        // Toppen (bjørk: spiss topp med løv)
+        // The top (birch: pointed top with foliage)
         if (birch)
             LeafCluster(leaf, rng, new List<Vector3> { TrunkAt(0.85f), TrunkAt(1f) }, true, Vector3.Right, 0);
 
@@ -143,7 +143,7 @@ public static class LeafTreeBuilder
         return pts[i].Lerp(pts[i + 1], f - i);
     }
 
-    /// <summary>Avsmalnende rør langs punktene. lod1/lod2 = ta med i LOD-nivåene.</summary>
+    /// <summary>Tapered tube along the points. lod1/lod2 = include in the LOD levels.</summary>
     private static void Tube(Geo g, List<Vector3> pts, List<float> rad, int sides, bool lod1, bool lod2Main, bool trunk)
     {
         int b0 = g.V.Count;
@@ -164,16 +164,16 @@ public static class LeafTreeBuilder
         for (int s = 0; s < sides; s++)
         {
             int a = b0 + k * (sides + 1) + s, b = a + sides + 1;
-            // Med klokka sett utenfra (Godots forside)
+            // Clockwise seen from outside (Godot's front face)
             int[] tri = { a, b, a + 1, a + 1, b, b + 1 };
-            // Rekkefølgen over gir forsiden ut gitt n = u*cos + w*sin med w = dir x u
+            // The order above gives the front face outward given n = u*cos + w*sin with w = dir x u
             g.L0.AddRange(tri);
             if (lod1) g.L1.AddRange(tri);
             if (trunk || (lod2Main && k < 2)) g.L2.AddRange(tri);
         }
     }
 
-    /// <summary>Lauvkort langs en grein. Bjørk: hengende kvister (høye kort); eik: tette klaser.</summary>
+    /// <summary>Leaf cards along a branch. Birch: hanging twigs (tall cards); oak: dense clusters.</summary>
     private static void LeafCluster(Geo g, Random rng, List<Vector3> branch, bool birch, Vector3 outDir, int idx)
     {
         float R() => (float)rng.NextDouble();
@@ -182,11 +182,11 @@ public static class LeafTreeBuilder
         {
             var p = Sample(branch, 0.15f + 0.85f * (c + R()) / count);
             float shade = 0.72f + R() * 0.3f;
-            // LOD: kort nr. 0,2,4 blir med i LOD1; 0 og 3 i LOD2
+            // LOD: cards no. 0,2,4 are included in LOD1; 0 and 3 in LOD2
             bool l1 = c % 2 == 0 || c == count - 1, l2 = c % 3 == 0;
             if (birch)
             {
-                // Hengende kvist: kortet henger rett ned fra greina, vridd tilfeldig
+                // Hanging twig: the card hangs straight down from the branch, randomly twisted
                 float yaw = R() * Mathf.Tau;
                 var side = new Vector3(Mathf.Cos(yaw), 0, Mathf.Sin(yaw));
                 float w = 0.45f + R() * 0.3f, h = 1.3f + R() * 0.9f;
@@ -196,7 +196,7 @@ public static class LeafTreeBuilder
             }
             else
             {
-                // Klase: kort som vender ut og opp, tilfeldig vridd
+                // Cluster: cards facing out and up, randomly twisted
                 var n = (outDir * (0.4f + R() * 0.6f) + Vector3.Up * (0.6f + R()) + new Vector3(R() - 0.5f, 0, R() - 0.5f)).Normalized();
                 var t1 = n.Cross(Mathf.Abs(n.Y) < 0.95f ? Vector3.Up : Vector3.Right).Normalized();
                 var t2 = n.Cross(t1).Normalized();
@@ -210,14 +210,14 @@ public static class LeafTreeBuilder
         }
     }
 
-    /// <summary>Firkantkort: tl/tr øverst (UV.y = 0), bl/br nederst.</summary>
+    /// <summary>Quad card: tl/tr at the top (UV.y = 0), bl/br at the bottom.</summary>
     private static void Card(Geo g, Vector3 tl, Vector3 tr, Vector3 bl, Vector3 br, float shade, bool l1, bool l2)
     {
         int b0 = g.V.Count;
         var raw = (tr - tl).Cross(bl - tl).Normalized();
         var n = raw.Y < 0f ? -raw : raw;
-        // Godot: forsiden er med klokka sett fra der normalen peker (ellers snus normalen og
-        // oversiden av kortet blir mørk)
+        // Godot: the front face is clockwise seen from where the normal points (otherwise the normal is flipped and
+        // the top side of the card becomes dark)
         bool flip = raw.Dot(n) > 0f;
         var col = new Color(shade, shade, shade);
         g.V.Add(tl); g.UV.Add(new Vector2(0, 0));
@@ -245,10 +245,10 @@ public static class LeafTreeBuilder
         mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, mat);
     }
 
-    // ------------------------------------------------------------ Lauvtekstur
+    // ------------------------------------------------------------ Leaf texture
     /// <summary>
-    /// En kvist som henger fra toppen av bildet, med små, spisse eggformede blader (bjørkeblad)
-    /// på korte stilker langs kvisten og noen sideskudd. Fargevariasjon per blad; lys midtribbe.
+    /// A twig hanging from the top of the image, with small, pointed egg-shaped leaves (birch leaves)
+    /// on short stalks along the twig and some side shoots. Color variation per leaf; light midrib.
     /// </summary>
     private static ImageTexture LeafTexture()
     {
@@ -293,14 +293,14 @@ public static class LeafTreeBuilder
             for (int i = 0; i <= n; i++)
             {
                 float t = (float)i / n;
-                // Eggform med spiss tupp
+                // Egg shape with pointed tip
                 float half = wid * Mathf.Sin(Mathf.Pi * Mathf.Pow(t, 0.75f)) * (1f - t * 0.25f);
                 var mid = at + dir * (t * len);
                 for (float s = -half; s <= half; s += 0.5f)
                 {
                     var p = mid + perp * s;
                     float edge = Mathf.Clamp(half - Mathf.Abs(s), 0f, 1f);
-                    // Lysere midtribbe, mørkere kant
+                    // Lighter midrib, darker edge
                     var cc = c * (1f + 0.25f * (1f - Mathf.Abs(s) / Mathf.Max(half, 0.01f))) * (Mathf.Abs(s) < 0.6f ? 1.35f : 1f);
                     Plot((int)p.X, (int)p.Y, cc, edge + 0.3f);
                 }
@@ -308,7 +308,7 @@ public static class LeafTreeBuilder
         }
 
         var twig = new Vector3(0.28f, 0.2f, 0.14f);
-        // Hovedkvist fra toppen og ned, litt svaiende
+        // Main twig from the top down, slightly swaying
         var prev = new Vector2(S * 0.5f, 0);
         var pts = new List<Vector2> { prev };
         for (int i = 1; i <= 10; i++)
@@ -318,7 +318,7 @@ public static class LeafTreeBuilder
             pts.Add(p);
             prev = p;
         }
-        // Sideskudd
+        // Side shoots
         for (int k = 0; k < 7; k++)
         {
             int i = 1 + k;
@@ -335,7 +335,7 @@ public static class LeafTreeBuilder
             }
             Leaf(b, (b - a).Normalized(), 20f + R() * 8f);
         }
-        // Blader langs hovedkvisten
+        // Leaves along the main twig
         for (int i = 1; i < pts.Count; i++)
             for (int s = -1; s <= 1; s += 2)
                 Leaf(pts[i], new Vector2(s * (0.6f + R() * 0.3f), 0.7f).Normalized(), 18f + R() * 10f);

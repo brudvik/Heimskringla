@@ -1,9 +1,9 @@
 shader_type spatial;
 render_mode cull_disabled, depth_draw_never, specular_schlick_ggx;
 
-// Stryk og fossefall: hvitt, skummende vann som strømmer nedover båndet.
-// UV.x = på tvers (0..1), UV.y = meter langs fallet (øker nedover). COLOR.r = bratthet (0..1),
-// COLOR.g = inntoning i endene.
+// Rapids and waterfalls: white, foaming water streaming down the ribbon.
+// UV.x = across (0..1), UV.y = meters along the fall (increasing downwards). COLOR.r = steepness (0..1),
+// COLOR.g = fade-in at the ends.
 
 uniform vec3 water_color : source_color = vec3(0.55, 0.7, 0.75);
 uniform vec3 foam_color : source_color = vec3(0.92, 0.95, 0.97);
@@ -28,14 +28,14 @@ varying float endfade;
 void vertex() {
 	steep = COLOR.r;
 	endfade = COLOR.g;
-	// Litt bølgende overflate
+	// Slightly undulating surface
 	VERTEX.y += sin(UV.y * 3.0 - TIME * 6.0 + UV.x * 5.0) * 0.06;
 }
 
 void fragment() {
-	float speed = 4.0;   // fast fart: varierende fart langs båndet ville strekke mønsteret over tid
+	float speed = 4.0;   // constant speed: varying speed along the ribbon would stretch the pattern over time
 	vec2 p = vec2(UV.x * 14.0, mod(UV.y, 4096.0) * 1.6 - TIME * speed * 2.0);
-	// Lange striper langs fallet + mindre klumper
+	// Long streaks along the fall + smaller clumps
 	float streak = vnoise(vec2(p.x, p.y * 0.15)) * 0.5 + vnoise(p * vec2(2.3, 0.6)) * 0.3 + vnoise(p * vec2(5.1, 1.7)) * 0.2;
 	float foam = smoothstep(0.35 - steep * 0.25, 0.75, streak);
 	vec3 col = mix(water_color, foam_color, foam);

@@ -1,10 +1,10 @@
-"""Viser innholdet i glTF/GLB-filer: noder, mesher, trekanter, størrelse, materialer, teksturer,
-skjelett (bein-navn) og animasjoner.
+"""Shows the contents of glTF/GLB files: nodes, meshes, triangles, size, materials, textures,
+skeleton (bone names) and animations.
 
-Bruk:
-    python scripts/inspect_gltf.py <fil eller mappe> [--bones] [--anims]
+Usage:
+    python scripts/inspect_gltf.py <file or folder> [--bones] [--anims]
 
-Eksempel:
+Example:
     python scripts/inspect_gltf.py D:/3dmodels/extracted/Stylized_Nature_MegaKit/glTF
     python scripts/inspect_gltf.py assets/characters/Superhero_Male_FullBody.gltf --bones
 """
@@ -38,19 +38,19 @@ def describe(path, bones=False, anims=False):
                 tris += g["accessors"][p["indices"]]["count"] // 3
     size = tuple(round(maxs[i] - mins[i], 2) for i in range(3)) if prims else None
     mats = [m.get("name") for m in g.get("materials", [])]
-    imgs = [i.get("uri", "<innebygd>") for i in g.get("images", [])]
-    print(f"{os.path.basename(path):40} noder={len(g.get('nodes', []))} mesher={len(g.get('meshes', []))} "
-          f"prims={prims} tris={tris} str={size} miny={round(mins[1], 2) if prims else '-'} "
+    imgs = [i.get("uri", "<embedded>") for i in g.get("images", [])]
+    print(f"{os.path.basename(path):40} nodes={len(g.get('nodes', []))} meshes={len(g.get('meshes', []))} "
+          f"prims={prims} tris={tris} size={size} miny={round(mins[1], 2) if prims else '-'} "
           f"skins={len(g.get('skins', []))} anims={len(g.get('animations', []))}")
-    print(f"    materialer={mats} bilder={imgs}")
+    print(f"    materials={mats} images={imgs}")
     if bones:
         for s in g.get("skins", []):
             names = [g["nodes"][j].get("name") for j in s["joints"]]
-            print(f"    bein ({len(names)}): {names}")
+            print(f"    bones ({len(names)}): {names}")
         roots = [g["nodes"][i].get("name") for i in g["scenes"][g.get("scene", 0)]["nodes"]]
-        print(f"    rotnoder: {roots}")
+        print(f"    root nodes: {roots}")
     if anims:
-        print(f"    animasjoner: {[a.get('name') for a in g.get('animations', [])]}")
+        print(f"    animations: {[a.get('name') for a in g.get('animations', [])]}")
 
 
 def main():

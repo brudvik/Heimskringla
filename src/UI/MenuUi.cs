@@ -4,7 +4,7 @@ using Heimskringla.Core;
 
 namespace Heimskringla.UI;
 
-/// <summary>Felles stil for menyene: Cinzel-skrift, gyllen tekst, mørke, halvgjennomsiktige paneler.</summary>
+/// <summary>Shared menu style: Cinzel font, golden text, dark semi-transparent panels.</summary>
 public static class MenuUi
 {
     public static readonly Color Gold = new(0.93f, 0.8f, 0.52f);
@@ -12,7 +12,7 @@ public static class MenuUi
     public static readonly Color TextDim = new(0.82f, 0.8f, 0.74f);
     private static FontVariation _title, _body;
 
-    /// <summary>Cinzel (variabel vekt). weight 400–900.</summary>
+    /// <summary>Cinzel (variable weight). weight 400–900.</summary>
     public static Font Cinzel(int weight = 500)
     {
         var baseFont = GD.Load<FontFile>("res://assets/fonts/Cinzel.ttf");
@@ -37,7 +37,7 @@ public static class MenuUi
         return l;
     }
 
-    /// <summary>Menyknapp: ren tekst som lyser opp i gull med en tynn linje under når musa er over.</summary>
+    /// <summary>Menu button: plain text that lights up in gold with a thin underline on mouse hover.</summary>
     public static Button Button(string text, int size, Action onPress, bool left = false)
     {
         var b = new Button { Text = text, Flat = true, FocusMode = Control.FocusModeEnum.All, CustomMinimumSize = new Vector2(360, size + 22) };
@@ -54,7 +54,7 @@ public static class MenuUi
         StyleBox hover = new StyleBoxLine { Color = new Color(Gold, 0.7f), Thickness = 1, GrowBegin = -110, GrowEnd = -110, Vertical = false };
         if (left)
         {
-            // Venstrestilt meny: gyllen strek til venstre og et svakt skjær bak teksten
+            // Left-aligned menu: golden bar on the left and a faint glow behind the text
             empty = new StyleBoxFlat { BgColor = new Color(0, 0, 0, 0), ContentMarginLeft = 22, BorderWidthLeft = 3, BorderColor = new Color(Gold, 0f) };
             hover = new StyleBoxFlat { BgColor = new Color(Gold, 0.09f), ContentMarginLeft = 22, BorderWidthLeft = 3, BorderColor = new Color(Gold, 0.9f) };
         }
@@ -93,7 +93,7 @@ public static class MenuUi
     }
 }
 
-/// <summary>Små, myke klikk-/hoverlyder til menyen (syntetisert, ingen filer).</summary>
+/// <summary>Small, soft click/hover sounds for the menu (synthesized, no files).</summary>
 public static class MenuSound
 {
     private static AudioStreamPlayer _p;
@@ -135,7 +135,7 @@ public static class MenuSound
     }
 }
 
-/// <summary>Innstillinger (lyd, kontroll, skjerm, grafikk). Endringer tas i bruk og lagres med en gang.</summary>
+/// <summary>Settings (audio, controls, display, graphics). Changes are applied and saved immediately.</summary>
 public partial class SettingsPanel : PanelContainer
 {
     public Action OnBack;

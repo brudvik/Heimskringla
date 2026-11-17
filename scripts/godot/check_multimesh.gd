@@ -1,4 +1,4 @@
-# Sjekker MultiMesh-bufferformatet med custom data (kjør: godot --headless --script scripts/godot/check_multimesh.gd)
+# Checks the MultiMesh buffer format with custom data (run: godot --headless --script scripts/godot/check_multimesh.gd)
 extends SceneTree
 
 func _init():

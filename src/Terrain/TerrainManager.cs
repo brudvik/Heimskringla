@@ -19,9 +19,9 @@ public readonly record struct ChunkKey(int Level, int X, int Z)
 }
 
 /// <summary>
-/// Quadtree-basert terreng med LOD. Hele verden er alltid dekket: 1024 m-chunks langt unna,
-/// ned til 64 m-chunks (1 m oppløsning) nær spilleren. Gamle chunks fjernes først når
-/// erstatningene er ferdige, så det aldri blir hull.
+/// Quadtree-based terrain with LOD. The whole world is always covered: 1024 m chunks far away,
+/// down to 64 m chunks (1 m resolution) near the player. Old chunks are only removed once
+/// their replacements are finished, so there are never holes.
 /// </summary>
 public partial class TerrainManager : Node3D
 {
@@ -62,7 +62,7 @@ public partial class TerrainManager : Node3D
         }
     }
 
-    /// <summary>True når alle ønskede chunks innenfor radius er ferdige (brukes ved oppstart).</summary>
+    /// <summary>True when all desired chunks within the radius are finished (used at startup).</summary>
     public bool IsAreaReady(Vector3 p, float radius)
     {
         foreach (var k in _desired)
@@ -85,7 +85,7 @@ public partial class TerrainManager : Node3D
             Visit(new ChunkKey(0, x, z), focus, above, desired);
         _desired = desired;
 
-        // Nye chunks
+        // New chunks
         foreach (var key in desired)
         {
             float dist = Distance(key, focus, above);
@@ -102,7 +102,7 @@ public partial class TerrainManager : Node3D
                 result => OnBuilt(chunk, (ChunkMeshData)result));
         }
 
-        // Fjern chunks som ikke lenger trengs (når erstatningen er klar)
+        // Remove chunks that are no longer needed (once the replacement is ready)
         var remove = new List<Chunk>();
         foreach (var c in _chunks.Values)
         {
@@ -118,7 +118,7 @@ public partial class TerrainManager : Node3D
         }
         foreach (var c in remove) RemoveChunk(c);
 
-        // Vis ferdige chunks som ikke overlapper gamle, synlige chunks
+        // Show finished chunks that don't overlap old, visible chunks
         int pending = 0;
         foreach (var dk in desired)
         {

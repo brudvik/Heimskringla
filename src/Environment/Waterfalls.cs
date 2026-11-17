@@ -6,8 +6,8 @@ using Heimskringla.World;
 namespace Heimskringla.Environment;
 
 /// <summary>
-/// Tegner stryk og fossefall (WorldGenerator.Cascades) som skummende vannbånd, gruppert i
-/// 512 m-fliser så de kan kuttes bort, og legger vannsprut/dis nederst i de store fallene.
+/// Draws rapids and waterfalls (WorldGenerator.Cascades) as foaming water ribbons, grouped into
+/// 512 m tiles so they can be culled, and adds spray/mist at the bottom of the large falls.
 /// </summary>
 public partial class Waterfalls : Node3D
 {
@@ -53,19 +53,19 @@ public partial class Waterfalls : Node3D
                 VisibilityRangeEnd = 1600f,
             });
         }
-        GD.Print($"Fossefall: {w.Cascades.Count} kjeder i {tiles.Count} fliser, {mists} med dis");
+        GD.Print($"Waterfalls: {w.Cascades.Count} chains in {tiles.Count} tiles, {mists} with mist");
     }
 
     /// <summary>
-    /// Ett sammenhengende bånd langs hele kjeden: Catmull-Rom-glattet sti, høyden følger terrenget
-    /// (aldri under det), bredden glir mellom punktene. UV.y = meter langs elva, COLOR.r = bratthet,
-    /// COLOR.g = inntoning i endene.
+    /// One continuous ribbon along the whole chain: Catmull-Rom-smoothed path, height follows the terrain
+    /// (never below it), width interpolates between the points. UV.y = meters along the river, COLOR.r = steepness,
+    /// COLOR.g = fade-in at the ends.
     /// </summary>
     private static void AddRibbon(SurfaceTool st, Cascade c, Vector3 origin, WorldGenerator w)
     {
         var pts = c.Points;
         int n = pts.Count;
-        // Forleng litt opp i elva over og ut i kulpen under, så overgangene skjules
+        // Extend a bit up into the river above and out into the pool below, so the transitions are hidden
         var first = pts[0] + (pts[0] - pts[1]) with { Y = 0 } * 0.6f;
         var last = pts[n - 1] + (pts[n - 1] - pts[n - 2]) with { Y = 0 } * 0.8f;
         last.Y = pts[n - 1].Y;
@@ -86,7 +86,7 @@ public partial class Waterfalls : Node3D
             {
                 float t = (float)s / Sub;
                 var q = CatmullRom(p0, p1, p2, p3, t);
-                // Høyden: rett mellom punktene, men aldri under terrenget (over hele bredden)
+                // Height: linear between the points, but never below the terrain (across the full width)
                 q.Y = Mathf.Lerp(p1.Y, p2.Y, t);
                 path.Add(q);
                 widths.Add(Mathf.Lerp(W[k], W[k + 1], t));
@@ -108,7 +108,7 @@ public partial class Waterfalls : Node3D
             var p = path[k];
             float ground = Mathf.Max(w.GetHeight(p.X, p.Z), Mathf.Max(w.GetHeight(p.X + side.X * 0.7f, p.Z + side.Z * 0.7f), w.GetHeight(p.X - side.X * 0.7f, p.Z - side.Z * 0.7f)));
             p.Y = Mathf.Max(p.Y, ground + 0.3f);
-            // Bratthet lokalt (fall per meter) til shaderen
+            // Local steepness (drop per meter) for the shader
             var a = path[Mathf.Max(k - 1, 0)]; var b = path[Mathf.Min(k + 1, path.Count - 1)];
             float run = new Vector2(b.X - a.X, b.Z - a.Z).Length();
             float steep = Mathf.Clamp((a.Y - b.Y) / Mathf.Max(run, 0.5f), 0f, 1f);

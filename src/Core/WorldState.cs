@@ -5,7 +5,7 @@ using Godot;
 
 namespace Heimskringla.Core;
 
-/// <summary>Inventar: ressursnavn → antall.</summary>
+/// <summary>Inventory: resource name → count.</summary>
 public static class Inventory
 {
     public static readonly Dictionary<string, int> Items = new();
@@ -31,20 +31,20 @@ public static class Inventory
 }
 
 /// <summary>
-/// Endringer i verden i forhold til det genererte utgangspunktet (diff).
-/// Kun ID-ene til høstede objekter lagres, ikke hele verden.
+/// Changes to the world relative to the generated baseline (diff).
+/// Only the IDs of harvested objects are stored, not the whole world.
 /// </summary>
 public static class WorldState
 {
     public static readonly HashSet<long> Removed = new();
-    /// <summary>Bål: x, y, z, ved igjen (s). Fylles ved lasting, leses ved lagring.</summary>
+    /// <summary>Campfires: x, y, z, wood remaining (s). Filled on load, read on save.</summary>
     public static readonly List<float[]> Fires = new();
-    /// <summary>Ferdigheter (0..100), f.eks. "Hogging". Øker litt for hver gang de brukes.</summary>
+    /// <summary>Skills (0..100), e.g. "Hogging". Increase a little each time they are used.</summary>
     public static readonly Dictionary<string, float> Skills = new();
 
     public static float Skill(string name) => Skills.TryGetValue(name, out float v) ? v : 0f;
 
-    /// <summary>Øker en ferdighet (raskt i starten, saktere mot 100). Returnerer nytt nivå.</summary>
+    /// <summary>Increases a skill (fast at first, slower towards 100). Returns the new level.</summary>
     public static float Practice(string name, float amount)
     {
         float v = Skill(name);
@@ -85,7 +85,7 @@ public static class WorldState
 
     public static bool Exists(int seed) => System.IO.File.Exists(PathFor(seed));
 
-    /// <summary>Laster lagret tilstand. Returnerer spillerposisjon og tid, eller null.</summary>
+    /// <summary>Loads saved state. Returns player position and time, or null.</summary>
     public static (Vector3 pos, float time)? Load(int seed)
     {
         var path = PathFor(seed);

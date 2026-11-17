@@ -4,12 +4,12 @@ using Godot;
 namespace Heimskringla.Core;
 
 /// <summary>
-/// Brukerinnstillinger (lagres i user://settings.cfg). Apply() setter lyd/vindu med en gang;
-/// grafikk og kamera leses av DayNight og Player via Changed.
+/// User settings (stored in user://settings.cfg). Apply() sets audio/window immediately;
+/// graphics and camera are read by DayNight and Player via Changed.
 /// </summary>
 public static class Settings
 {
-    public const int DefaultSeed = 4242;   // verdenen vi har testet og finjustert med
+    public const int DefaultSeed = 4242;   // the world we have tested and fine-tuned with
 
     public static float MasterVolume = 0.8f;
     public static float MusicVolume = 0.6f;
@@ -17,7 +17,7 @@ public static class Settings
     public static float Fov = 70f;
     public static bool Fullscreen;
     public static bool VSync = true;
-    /// <summary>0 = lav (ingen volumetrisk tåke/SSAO, kortere skygger), 1 = middels, 2 = høy.</summary>
+    /// <summary>0 = low (no volumetric fog/SSAO, shorter shadows), 1 = medium, 2 = high.</summary>
     public static int Quality = 2;
     public static int LastSeed = DefaultSeed;
 
@@ -56,7 +56,7 @@ public static class Settings
         cfg.Save(Path);
     }
 
-    /// <summary>Tar i bruk innstillingene (lyd, vindu) og varsler resten av spillet.</summary>
+    /// <summary>Applies the settings (audio, window) and notifies the rest of the game.</summary>
     public static void Apply()
     {
         AudioServer.SetBusVolumeDb(0, MasterVolume <= 0.001f ? -80f : Mathf.LinearToDb(MasterVolume));

@@ -7,8 +7,8 @@ using Heimskringla.Vegetation;
 namespace Heimskringla.UI;
 
 /// <summary>
-/// Spillets HUD: kompass, verktøylinje med ikoner, utholdenhet, inventar, mål-helse,
-/// plukk-meldinger, systemmeldinger, hjelp, debug, lasteskjerm og kart.
+/// The game HUD: compass, hotbar with icons, stamina, inventory, target health,
+/// pickup messages, system messages, help, debug, loading screen and map.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
@@ -38,7 +38,7 @@ public partial class Hud : CanvasLayer
     public bool MapOpen => Map.Visible;
     public bool DebugVisible => _debug.Visible;
 
-    /// <summary>Meshen som brukes som ikon for hver ressurs/verktøy.</summary>
+    /// <summary>The mesh used as the icon for each resource/tool.</summary>
     private static Mesh IconMesh(string key) => key switch
     {
         "Tømmer" => PropLibrary.Defs?[(int)PropKind.Log].Variants[0].Mesh,
@@ -66,19 +66,19 @@ public partial class Hud : CanvasLayer
         AddChild(_icons);
         _icons.IconReady += _ => { RefreshInventory(); RefreshHotbar(_tool); };
 
-        // Siktekorn
+        // Crosshair
         _crosshair = new ColorRect { Color = new Color(1, 1, 1, 0.8f), Size = new Vector2(4, 4), MouseFilter = Control.MouseFilterEnum.Ignore };
         _crosshair.SetAnchorsPreset(Control.LayoutPreset.Center);
         _crosshair.Position -= new Vector2(2, 2);
         AddChild(_crosshair);
 
-        // Kompass øverst
+        // Compass at the top
         _compass = new Compass { CustomMinimumSize = new Vector2(520, 34), MouseFilter = Control.MouseFilterEnum.Ignore };
         _compass.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         _compass.OffsetLeft = -260; _compass.OffsetRight = 260; _compass.OffsetTop = 10; _compass.OffsetBottom = 44;
         AddChild(_compass);
 
-        // Mål: navn + helse under siktekornet
+        // Target: name + health below the crosshair
         var tb = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         tb.SetAnchorsPreset(Control.LayoutPreset.Center);
         tb.OffsetLeft = -110; tb.OffsetRight = 110; tb.OffsetTop = 26; tb.OffsetBottom = 70;
@@ -90,13 +90,13 @@ public partial class Hud : CanvasLayer
         _targetBox.Visible = false;
         AddChild(tb);
 
-        // Handlingshint
+        // Action hint
         _prompt = MakeLabel(19, HorizontalAlignment.Center);
         _prompt.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         _prompt.OffsetLeft = -400; _prompt.OffsetRight = 400; _prompt.OffsetTop = -178; _prompt.OffsetBottom = -150;
         AddChild(_prompt);
 
-        // Utholdenhet + verktøylinje nederst
+        // Stamina + hotbar at the bottom
         var bottom = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
         bottom.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         bottom.OffsetLeft = -150; bottom.OffsetRight = 150; bottom.OffsetTop = -128; bottom.OffsetBottom = -14;
@@ -115,7 +115,7 @@ public partial class Hud : CanvasLayer
             _slots.Add(slot);
         }
 
-        // Inventar nede til venstre
+        // Inventory in the bottom left
         _invPanel = MakePanel();
         _invPanel.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
         _invPanel.OffsetLeft = 16; _invPanel.OffsetBottom = -16; _invPanel.OffsetTop = -16; _invPanel.OffsetRight = 16;
@@ -132,7 +132,7 @@ public partial class Hud : CanvasLayer
         _invPanel.AddChild(invBox);
         AddChild(_invPanel);
 
-        // Plukk-meldinger (høyre) og systemmeldinger (venstre)
+        // Pickup messages (right) and system messages (left)
         _pickups = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.End };
         _pickups.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
         _pickups.OffsetLeft = -260; _pickups.OffsetRight = -20; _pickups.OffsetTop = -40; _pickups.OffsetBottom = 220;
@@ -164,7 +164,7 @@ public partial class Hud : CanvasLayer
         AddChild(helpPanel);
         _help = MakeHelpToggle(helpPanel);
 
-        // Lasteskjerm: bakgrunnsbilde, mørk tone (mest bak teksten) og logoen over statusteksten
+        // Loading screen: background image, dark tint (mostly behind the text) and the logo above the status text
         const string bgPath = "res://assets/logo/heimskringla-bg.png";
         if (ResourceLoader.Exists(bgPath))
         {
@@ -218,7 +218,7 @@ public partial class Hud : CanvasLayer
         return (Label)panel.GetChild(0);
     }
 
-    /// <summary>Kalles når PropLibrary er klar, så ikonene kan rendres.</summary>
+    /// <summary>Called when PropLibrary is ready, so the icons can be rendered.</summary>
     public void RequestIcons()
     {
         foreach (var key in new[] { "Tømmer", "Grein", "Stein", "Sopp", "Øks", "Hakke" })
@@ -245,7 +245,7 @@ public partial class Hud : CanvasLayer
 
     public override void _Process(double delta)
     {
-        // Utholdenhetslinja skjules når den er full
+        // The stamina bar is hidden when full
         _staminaShowTimer -= (float)delta;
         float a = _staminaShowTimer > 0f ? 1f : 0f;
         _stamina.Modulate = new Color(1, 1, 1, Mathf.MoveToward(_stamina.Modulate.A, a, (float)delta * 3f));
@@ -258,7 +258,7 @@ public partial class Hud : CanvasLayer
         if (!Core.Game.AutoTest) Input.MouseMode = Map.Visible ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
     }
 
-    // ------------------------------------------------------------ Byggeklosser
+    // ------------------------------------------------------------ Building blocks
 
     private static Label MakeLabel(int size, HorizontalAlignment align)
     {
@@ -318,7 +318,7 @@ public partial class Hud : CanvasLayer
         return box;
     }
 
-    // ------------------------------------------------------------ Oppdatering
+    // ------------------------------------------------------------ Updating
 
     public void SetPrompt(string text) => _prompt.Text = text ?? "";
 
@@ -429,10 +429,10 @@ public partial class Hud : CanvasLayer
     }
 }
 
-/// <summary>Kompasslinje: viser himmelretninger rundt kameraets retning.</summary>
+/// <summary>Compass strip: shows cardinal directions around the camera heading.</summary>
 public partial class Compass : Control
 {
-    public float Heading;   // radianer, 0 = nord, med klokka
+    public float Heading;   // radians, 0 = north, clockwise
 
     public override void _Process(double delta) => QueueRedraw();
 
@@ -447,7 +447,7 @@ public partial class Compass : Control
         };
         DrawStyleBox(bg, new Rect2(Vector2.Zero, size));
         float headingDeg = Mathf.RadToDeg(Heading);
-        const float span = 150f;   // grader synlig
+        const float span = 150f;   // degrees visible
         string[] names = { "N", "NØ", "Ø", "SØ", "S", "SV", "V", "NV" };
         for (int d = -180; d <= 540; d += 15)
         {

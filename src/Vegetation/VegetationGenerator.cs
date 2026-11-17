@@ -22,14 +22,14 @@ public sealed class PropInstance
     public Transform3D Transform => new(new Basis(Vector3.Up, Yaw).Scaled(new Vector3(Scale, Scale, Scale)), Pos);
 }
 
-/// <summary>Deterministisk plassering av vegetasjon og steiner per celle. Kjøres i bakgrunnstråd.</summary>
+/// <summary>Deterministic placement of vegetation and rocks per cell. Runs on a background thread.</summary>
 public static class VegetationGenerator
 {
-    public const int PlacedKinds = 14; // Spruce..Driftwood (Log plasseres ikke)
-    private const int TreeKinds = 5;    // Spruce..DeadTree påvirkes av skogholt-støy
+    public const int PlacedKinds = 14; // Spruce..Driftwood (Log is not placed)
+    private const int TreeKinds = 5;    // Spruce..DeadTree are affected by grove noise
     private const float Spacing = 3f;
 
-    //                     Gran    Furu    Bjørk   Eik     Tørr    Busk    Bregne  Blomst  Sopp    Blokk   Stein   Grein   Klippe  Drivved
+    //                     Spruce  Pine    Birch   Oak     Dead    Bush    Fern    Flower  Mushr.  Boulder Stone   Branch  Cliff   Drift
     private static readonly float[,] Density =
     {
         /* Ocean    */ { 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f },
@@ -45,8 +45,8 @@ public static class VegetationGenerator
 
     private static readonly float[] MinNormalY = { 0.82f, 0.82f, 0.82f, 0.85f, 0.8f, 0.75f, 0.78f, 0.8f, 0.8f, 0.5f, 0.7f, 0.75f, 0.35f, 0.85f };
     /// <summary>
-    /// Steiner og klipper står på det laveste punktet under seg (ellers henger nedsiden i lufta i
-    /// bratt terreng); andre props på senterhøyden.
+    /// Rocks and cliffs stand on the lowest point beneath them (otherwise the downhill side hangs in the air on
+    /// steep terrain); other props at the center height.
     /// </summary>
     private static float BaseHeight(WorldGenerator w, PropDef def, int variant, float scale, float x, float z, float h)
     {
@@ -67,8 +67,8 @@ public static class VegetationGenerator
     private const int FernKind = (int)PropKind.Fern, BushKind = (int)PropKind.Bush;
 
     /// <summary>
-    /// Trær får en aldersfordeling i stedet for jevn størrelse: ~25 % unge (små, smale i kronen),
-    /// ~62 % voksne (def-ens vanlige spenn) og ~13 % gamle kjemper. sc er jevnt fordelt 0..1.
+    /// Trees get an age distribution instead of uniform size: ~25 % young (small, narrow crowns),
+    /// ~62 % mature (the def's normal range) and ~13 % old giants. sc is uniformly distributed 0..1.
     /// </summary>
     private static float TreeScale(PropDef def, float sc)
     {
@@ -112,10 +112,10 @@ public static class VegetationGenerator
 
             float clump = Biomes.SmoothStep(-0.35f, 0.35f, w.ForestClump(x, z));
             float treeMul = 0.2f + 1.05f * clump;
-            // Bestand: i barskogen står det bjørkeholt, i lauvskogen granholt (store flekker)
+            // Stands: birch groves in the conifer forest, spruce groves in the deciduous forest (large patches)
             float stand = w.ColorNoise(x * 0.013f + 517f, z * 0.013f - 211f);
             float birchStand = Biomes.SmoothStep(0.15f, 0.5f, stand), spruceStand = Biomes.SmoothStep(0.15f, 0.5f, -stand);
-            // Dyretråkk: bare småstein og greiner langs stien
+            // Game trails: only pebbles and branches along the path
             float trail = w.TrailMask(x, z, h, n.Y);
             float total = 0f;
             for (int k = 0; k < PlacedKinds; k++)
@@ -132,10 +132,10 @@ public static class VegetationGenerator
                     else if (k == BirchKind || k == OakKind) d *= 1f - 0.6f * spruceStand;
                 }
                 if (k < TreeKinds) d *= treeMul;
-                // Undervegetasjon (bregner/busker) der skogen er tett
+                // Undergrowth (ferns/bushes) where the forest is dense
                 if (k == FernKind || k == BushKind) d *= 0.6f + clump * (biome is Biome.Forest or Biome.PineForest ? 1.2f : 0.4f);
-                if (k == FlowerKind) d *= 1f + 3f * (1f - clump);          // blomstereng i lysningene
-                if (k == CliffKind) d *= 0.2f + 4f * Biomes.SmoothStep(0.9f, 0.6f, n.Y);   // helst i skrenter
+                if (k == FlowerKind) d *= 1f + 3f * (1f - clump);          // flower meadows in the clearings
+                if (k == CliffKind) d *= 0.2f + 4f * Biomes.SmoothStep(0.9f, 0.6f, n.Y);   // preferably on steep slopes
                 if (trail > 0.3f && k != (int)PropKind.Stone && k != (int)PropKind.Branch) d = 0f;
                 if (n.Y < MinNormalY[k]) d = 0f;
                 dens[k] = d;
@@ -162,11 +162,11 @@ public static class VegetationGenerator
             }
             int variant = vFrom + Math.Min((int)(vr * vCount), vCount - 1);
             var mv = def.Variants[variant];
-            // Klippeskall (bare forsiden skannet) hører hjemme i bratte skrenter; på slak mark
-            // ligger de som bleke plater
+            // Cliff shells (only the front side scanned) belong on steep slopes; on gentle ground
+            // they lie like pale slabs
             if (mv.FaceDir != null && n.Y > 0.78f) continue;
             float scale = (def.Role == PropRole.Tree ? TreeScale(def, sc) : Mathf.Lerp(def.MinScale, def.MaxScale, sc)) * mv.BaseScale;
-            // Skannede klippeskall: forsiden ut fra skråningen (baksiden inn i fjellet)
+            // Scanned cliff shells: front side facing out from the slope (back side into the mountain)
             if (mv.FaceDir is Vector3 fd && new Vector2(n.X, n.Z).LengthSquared() > 1e-4f)
                 yaw = MathF.Atan2(n.X, n.Z) - MathF.Atan2(fd.X, fd.Z) + (vr - 0.5f) * 0.6f;
             float sink = mv.SinkFrac >= 0f ? mv.SinkFrac * mv.Aabb.Size.Y : def.Sink;

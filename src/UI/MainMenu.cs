@@ -5,23 +5,23 @@ using Heimskringla.Core;
 namespace Heimskringla.UI;
 
 /// <summary>
-/// Intro og hovedmeny.
+/// Intro and main menu.
 ///
-/// Intro (første gang spillet startes, tast/klikk hopper over):
-///   svart → "Kjell Arne Brudvik presenterer" → det malte bildet toner fram med jevn, langsom zoom,
-///   tåke og lysstråler → logoen avsløres stort midt på skjermen (skjær og lysstripe) → når
-///   verdenen er generert, toner bildet over i en filmatisk flytur over den levende verdenen
-///   (Main styrer kameraet) → logoen glir opp til venstre og menyen kommer fram under den.
+/// Intro (first time the game starts, key/click skips):
+///   black → "Kjell Arne Brudvik presents" → the painted image fades in with a smooth, slow zoom,
+///   mist and light rays → the logo is revealed large in the middle of the screen (glow and light sweep) → when
+///   the world has been generated, the image crossfades into a cinematic flyover of the live world
+///   (Main drives the camera) → the logo slides up to the left and the menu appears below it.
 ///
-/// Meny: Fortsett (hvis lagring), Nytt spill, verden/seed (tilfeldig, standard 4242),
-/// Innstillinger, Avslutt. "Utviklet av Kjell Arne Brudvik" nederst.
+/// Menu: Continue (if a save exists), New game, world/seed (random, default 4242),
+/// Settings, Quit. "Developed by Kjell Arne Brudvik" at the bottom.
 /// </summary>
 public partial class MainMenu : CanvasLayer
 {
-    /// <summary>Kalles når spilleren starter: (seed, last lagring).</summary>
+    /// <summary>Called when the player starts: (seed, load save).</summary>
     public Action<int, bool> OnStart;
     public bool SkipIntro;
-    /// <summary>Settes av Main når den levende verdenen er klar til å vises bak menyen.</summary>
+    /// <summary>Set by Main when the live world is ready to be shown behind the menu.</summary>
     public bool WorldReady;
 
     private Control _root;
@@ -39,7 +39,7 @@ public partial class MainMenu : CanvasLayer
     private IntroMusic _music;
     private AudioStreamPlayer _wind;
 
-    // Tidslinje (sekunder)
+    // Timeline (seconds)
     private const float PresentsIn = 0.8f, PresentsOut = 4.8f, BgIn = 4.2f, LogoIn = 6.4f, MenuIn = 10.0f;
     private const float LogoAspect = 2172f / 724f;
 
@@ -54,18 +54,18 @@ public partial class MainMenu : CanvasLayer
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_root);
 
-        // Svart dekke bak det malte bildet; begge tones bort når den levende verdenen vises
+        // Black cover behind the painted image; both fade out when the live world is shown
         _cover = Full(new ColorRect { Color = new Color(0.01f, 0.01f, 0.015f) });
         const string bgPath = "res://assets/logo/heimskringla-bg.png";
         _bgMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/menu_bg.gdshader") };
         if (ResourceLoader.Exists(bgPath)) _bgMat.SetShaderParameter("tex", GD.Load<Texture2D>(bgPath));
         _bg = Full(new ColorRect { Material = _bgMat });
 
-        // Tåke, lysstråler og vignett
+        // Mist, light rays and vignette
         _mistMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/menu_mist.gdshader") };
         _mist = Full(new ColorRect { Material = _mistMat });
 
-        // Snø/aske som daler sakte
+        // Slowly falling snow/ash
         _snow = new CpuParticles2D
         {
             Amount = 120, Lifetime = 14f, Preprocess = 14f,
@@ -77,7 +77,7 @@ public partial class MainMenu : CanvasLayer
         };
         _root.AddChild(_snow);
 
-        // Mørk toning til venstre bak menyen
+        // Dark gradient on the left behind the menu
         var lg = new GradientTexture2D
         {
             Width = 256, Height = 4, FillFrom = new Vector2(0, 0.5f), FillTo = new Vector2(1, 0.5f),
@@ -88,10 +88,10 @@ public partial class MainMenu : CanvasLayer
         _leftShade.OffsetRight = 980;
         _root.AddChild(_leftShade);
 
-        // Svart toning (under presenter-kortet, over bildet)
+        // Black fade (below the presents card, above the image)
         _black = Full(new ColorRect { Color = Colors.Black });
 
-        // "Presenterer"-kortet
+        // The "presents" card
         var pres = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
         pres.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         pres.AddThemeConstantOverride("separation", 6);
@@ -102,7 +102,7 @@ public partial class MainMenu : CanvasLayer
         pres.AddChild(_presentsName);
         pres.AddChild(_presents);
 
-        // Logo (posisjoneres manuelt: midt på ved avsløringen, så opp til venstre)
+        // Logo (positioned manually: centered during the reveal, then up to the left)
         const string logoPath = "res://assets/logo/heimskringla-logo.png";
         _logoMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/menu_logo.gdshader") };
         if (ResourceLoader.Exists(logoPath)) _logoMat.SetShaderParameter("tex", GD.Load<Texture2D>(logoPath));
@@ -119,7 +119,7 @@ public partial class MainMenu : CanvasLayer
         _tagline.Modulate = new Color(1, 1, 1, 0);
         _root.AddChild(_tagline);
 
-        // Menyen (venstre kolonne)
+        // The menu (left column)
         _menu = new VBoxContainer { Modulate = new Color(1, 1, 1, 0), Visible = false };
         _menu.AddThemeConstantOverride("separation", 2);
         _root.AddChild(_menu);
@@ -135,7 +135,7 @@ public partial class MainMenu : CanvasLayer
         _version.Modulate = new Color(1, 1, 1, 0);
         _root.AddChild(_version);
 
-        // Lyd: vind + klangflate
+        // Audio: wind + pad
         _music = new IntroMusic();
         AddChild(_music);
         const string windPath = "res://assets/audio/wind/wind_open.ogg";
@@ -167,7 +167,7 @@ public partial class MainMenu : CanvasLayer
         _menu.AddChild(_continue);
         _menu.AddChild(MenuUi.Button("Nytt spill", 32, () => Start(false), left: true));
 
-        // Verden/seed
+        // World/seed
         var seedRow = new HBoxContainer();
         seedRow.AddThemeConstantOverride("separation", 10);
         seedRow.AddChild(new Control { CustomMinimumSize = new Vector2(22, 0) });
@@ -237,19 +237,19 @@ public partial class MainMenu : CanvasLayer
         float A(float start, float dur) => Mathf.Clamp((_t - start) / dur, 0f, 1f);
         var vs = _root.Size;
 
-        // Presenterer
+        // Presents
         float pin = Ease(A(PresentsIn, 1.4f)) * (1f - Ease(A(PresentsOut - 1.2f, 1.2f)));
         if (_t >= MenuIn) pin = 0f;
         _presentsName.Modulate = new Color(1, 1, 1, pin);
         _presents.Modulate = new Color(1, 1, 1, pin * Ease(A(PresentsIn + 0.6f, 1.2f)));
 
-        // Svart → bilde → levende verden
+        // Black → image → live world
         if (!_leaving) _black.Color = new Color(0, 0, 0, 1f - Ease(A(BgIn, 3.4f)));
         if (WorldReady && _t > LogoIn + 1.5f) _live = Mathf.Min(1f, _live + dt / 4f);
         float live = Ease(_live);
         _cover.Color = new Color(_cover.Color, 1f - live);
         _bgMat.SetShaderParameter("alpha", 1f - live);
-        // Jevn, langsom zoom (i shaderen, med mipmaps: ingen hakking eller flimring)
+        // Smooth, slow zoom (in the shader, with mipmaps: no stutter or shimmer)
         float z = 1.12f - 0.1f * Ease(Mathf.Clamp((_t - BgIn) / 70f, 0f, 1f));
         _bgMat.SetShaderParameter("zoom", z);
         _mistMat.SetShaderParameter("strength", Mathf.Lerp(1f, 0.32f, live));
@@ -257,7 +257,7 @@ public partial class MainMenu : CanvasLayer
         _snow.Position = new Vector2(vs.X * 0.5f, -20f);
         _snow.EmissionRectExtents = new Vector2(vs.X * 0.6f, 10f);
 
-        // Logo: avsløres stort midt på, glir opp til venstre når menyen kommer
+        // Logo: revealed large in the center, slides up to the left when the menu appears
         float reveal = EaseOut(A(LogoIn, 3.0f));
         _logoMat.SetShaderParameter("reveal", reveal);
         float g = Ease(A(MenuIn - 0.6f, 2.0f));
@@ -269,7 +269,7 @@ public partial class MainMenu : CanvasLayer
         var lp = bigPos.Lerp(smallPos, g);
         _logo.Position = lp;
         _logo.Size = new Vector2(w, h);
-        // Lysstripe: ved avsløringen og så hvert ~14. sekund
+        // Light sweep: at the reveal and then every ~14 seconds
         if (_t >= _nextSweep && _sweepT < 0f) { _sweepT = 0f; _nextSweep = _t + 14f; }
         if (_sweepT >= 0f)
         {
@@ -281,7 +281,7 @@ public partial class MainMenu : CanvasLayer
         _tagline.Size = new Vector2(w, 30);
         _tagline.Position = new Vector2(lp.X, lp.Y + h - 6f);
 
-        // Meny, toning og kreditering
+        // Menu, gradient and credits
         float m = Ease(A(MenuIn + 0.4f, 1.4f));
         _leftShade.Modulate = new Color(1, 1, 1, Ease(A(MenuIn - 0.4f, 2f)));
         var menuPos = new Vector2(78f, smallPos.Y + wSmall / LogoAspect + 64f);
@@ -301,13 +301,13 @@ public partial class MainMenu : CanvasLayer
         }
         if (_menuShown) _menu.Modulate = new Color(1, 1, 1, m);
 
-        // Lyd
+        // Audio
         float master = _leaving ? Mathf.Max(0f, 1f - _black.Color.A) : 1f;
         float mv = Settings.MusicVolume * master;
         if (_wind != null) _wind.VolumeDb = Mathf.LinearToDb(Mathf.Max(0.0001f, Ease(A(0.2f, 3f)) * 0.45f * mv * (1f - live * 0.4f)));
         _music.Level = Ease(A(2.5f, 6f)) * mv;
 
-        // Testbryter: HK_MENUSHOT=<mappe> tar bilder av introen og menyen, og avslutter
+        // Test switch: HK_MENUSHOT=<dir> takes screenshots of the intro and menu, then quits
         var shotDir = OS.GetEnvironment("HK_MENUSHOT");
         if (!string.IsNullOrEmpty(shotDir))
         {

@@ -1,6 +1,6 @@
-"""Klipper ut samme område fra flere skjermbilder og legger dem side om side (for å sammenligne varianter).
+"""Crops the same region from several screenshots and places them side by side (to compare variants).
 
-Bruk: python scripts/crop_compare.py <ut.png> <x0,y0,x1,y1> <bilde1> [bilde2 ...]
+Usage: python scripts/crop_compare.py <out.png> <x0,y0,x1,y1> <image1> [image2 ...]
 """
 import sys
 from PIL import Image, ImageDraw

@@ -6,16 +6,16 @@ using Heimskringla.Core;
 namespace Heimskringla.Vegetation;
 
 /// <summary>
-/// Norsk gran (Picea abies), kodegenerert: rett, avsmalnende stamme med kranser av greiner som
-/// henger ned og bøyer tuppen opp igjen ("kamgran"), smal og spiss krone. Hver grein er et
-/// buet, V-formet kort med en tegnet barnåltekstur (alpha), så silhuetten blir fillete og levende
-/// i stedet for flate plater.
+/// Norway spruce (Picea abies), procedurally generated: straight, tapering trunk with whorls of branches that
+/// hang down and bend the tip back up ("comb spruce"), narrow and pointed crown. Each branch is a
+/// curved, V-shaped card with a painted needle texture (alpha), so the silhouette becomes ragged and lively
+/// instead of flat plates.
 ///
-/// Ytelse: ~1700 trekanter nært, med to LOD-nivåer i samme vertexbuffer (bare nye indekslister):
-///   LOD1 (~60 m+): hver grein ett rett kort fra rot til tupp
-///   LOD2 (~200 m+): bare annenhver krans
-/// Overflate 0 = bark ("Bark"), 1 = bar ("Needles"); PropLibrary.ApplyWind gjør dem om til
-/// foliage-shaderen (barkdetalj/mose og vind, løv-normaler og årstidsfarger).
+/// Performance: ~1700 triangles up close, with two LOD levels in the same vertex buffer (just new index lists):
+///   LOD1 (~60 m+): each branch one straight card from root to tip
+///   LOD2 (~200 m+): only every other whorl
+/// Surface 0 = bark ("Bark"), 1 = needles ("Needles"); PropLibrary.ApplyWind converts them to
+/// the foliage shader (bark detail/moss and wind, foliage normals and seasonal colors).
 /// </summary>
 public static class SpruceBuilder
 {
@@ -28,14 +28,14 @@ public static class SpruceBuilder
         {
             ResourceName = "Needles",
             AlbedoTexture = _needles ??= NeedleTexture(),
-            // Foliage-shaderen trekker bartrær mot blågrønt (laget for de lime-grønne lavpoly-modellene);
-            // vei opp for det, så granbaret blir mørkt skoggrønt og ikke cyan
+            // The foliage shader pulls conifers toward blue-green (made for the lime-green low-poly models);
+            // compensate for that, so the spruce needles become dark forest green and not cyan
             AlbedoColor = new Color(1.25f, 1.0f, 0.8f),
             Transparency = BaseMaterial3D.TransparencyEnum.AlphaScissor,
             AlphaScissorThreshold = 0.5f,
             Roughness = 0.8f,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            VertexColorUseAsAlbedo = true,   // lyshet per grein og brune, tørre greiner nederst
+            VertexColorUseAsAlbedo = true,   // lightness per branch and brown, dry branches at the bottom
             VertexColorIsSrgb = false,
         };
         var list = new List<ModelVariant>();
@@ -48,14 +48,14 @@ public static class SpruceBuilder
         return list;
     }
 
-    // ------------------------------------------------------------ Geometri
+    // ------------------------------------------------------------ Geometry
     private static ArrayMesh Build(float H, int seed, Material bark, Material needles)
     {
         var rng = new Random(seed * 7919);
         float R() => (float)rng.NextDouble();
         var mesh = new ArrayMesh();
 
-        // ---- Stamme: 8 sider, avsmalnende, lett krok
+        // ---- Trunk: 8 sides, tapering, slight bend
         {
             var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var idx = new List<int>();
             const int Sides = 8, Rings = 7;
@@ -65,7 +65,7 @@ public static class SpruceBuilder
             {
                 float t = (float)k / Rings;
                 float y = t * H;
-                // Rotutvidelse nederst, så nesten lineært smalere mot toppen
+                // Root flare at the bottom, then almost linearly narrower toward the top
                 float r = r0 * (1f - t * 0.93f) * (1f + 0.6f * Mathf.Exp(-y * 2.5f));
                 var c = new Vector3(lean.X * t * t, y, lean.Y * t * t);
                 for (int s = 0; s <= Sides; s++)
@@ -79,14 +79,14 @@ public static class SpruceBuilder
             for (int s = 0; s < Sides; s++)
             {
                 int a = k * (Sides + 1) + s, b = a + Sides + 1;
-                // Godot: forsiden er med klokka sett utenfra (ellers lyses stammen innenfra og ser hul ut)
+                // Godot: the front face is clockwise seen from outside (otherwise the trunk is lit from inside and looks hollow)
                 idx.Add(a); idx.Add(a + 1); idx.Add(b);
                 idx.Add(a + 1); idx.Add(b + 1); idx.Add(b);
             }
             AddSurface(mesh, v, n, uv, null, idx, null, bark);
         }
 
-        // ---- Greiner
+        // ---- Branches
         {
             var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var col = new List<Color>();
             var lod0 = new List<int>(); var lod1 = new List<int>(); var lod2 = new List<int>();
@@ -99,10 +99,10 @@ public static class SpruceBuilder
             for (float y = yStart; y < H * 0.985f; y += spacing * (0.85f + R() * 0.3f), whorl++)
             {
                 float t = y / H;
-                // Kroneprofil: smal kjegle, litt buet (bredest et stykke opp fra bunnen)
+                // Crown profile: narrow cone, slightly curved (widest some way up from the bottom)
                 float prof = Mathf.Pow(1f - t, 0.82f) * Mathf.Min(1f, 0.55f + t * 3f);
                 int count = t > 0.92f ? 3 : 6;
-                // Nederste greiner er tørre og korte (lite lys under kronene)
+                // The lowest branches are dry and short (little light under the crowns)
                 bool dead = t < 0.2f && R() < 0.6f;
                 for (int i = 0; i < count; i++)
                 {
@@ -110,12 +110,12 @@ public static class SpruceBuilder
                     var dir = new Vector3(Mathf.Cos(yaw), 0, Mathf.Sin(yaw));
                     var side = new Vector3(-dir.Z, 0, dir.X);
                     float L = (rMax * prof * (0.8f + R() * 0.4f) + 0.35f) * (dead ? 0.55f : 1f);
-                    // Høyt oppe peker greinene oppover; lenger ned henger de og tuppen bøyer opp
+                    // High up the branches point upward; lower down they hang and the tip bends up
                     float a = Mathf.Lerp(-0.08f, 0.5f, Mathf.Pow(t, 1.6f));
                     float b = Mathf.Lerp(0.42f, 0.05f, t);
                     float c = Mathf.Lerp(0.2f, 0f, t);
                     float hw = L * (dead ? 0.22f : 0.5f);
-                    float wing = hw * Mathf.Lerp(0.55f, 0.25f, t);   // greinene "henger" til sidene (kamgran)
+                    float wing = hw * Mathf.Lerp(0.55f, 0.25f, t);   // the branches "hang" to the sides (comb spruce)
                     var root = new Vector3(0, y, 0) + dir * H * 0.012f * (1f - t);
                     int b0 = v.Count;
                     float shade = 0.75f + R() * 0.25f;
@@ -150,7 +150,7 @@ public static class SpruceBuilder
                     }
                 }
             }
-            // Toppskudd: et par små, oppreiste kort
+            // Leader shoot: a couple of small, upright cards
             for (int i = 0; i < 2; i++)
             {
                 float yaw = i * Mathf.Pi * 0.5f;
@@ -175,7 +175,7 @@ public static class SpruceBuilder
 
     private static void Quad(List<int> l, int a, int b, int c, int d)
     {
-        // a-b langs roten, c-d langs neste ring
+        // a-b along the root, c-d along the next ring
         l.Add(a); l.Add(c); l.Add(b);
         l.Add(b); l.Add(c); l.Add(d);
     }
@@ -194,11 +194,11 @@ public static class SpruceBuilder
         mesh.SurfaceSetMaterial(mesh.GetSurfaceCount() - 1, mat);
     }
 
-    // ------------------------------------------------------------ Barnåltekstur
+    // ------------------------------------------------------------ Needle texture
     /// <summary>
-    /// Tegner en grankvist sett ovenfra: brun hovedakse langs u, sideskudd skrått fremover, og tett
-    /// med korte nåler rundt alt. Alfa = nåler. Mipmapene lages med bevart dekning (ellers tynnes
-    /// greinene ut og forsvinner på avstand), og fargen blør ut i de gjennomsiktige områdene.
+    /// Draws a spruce twig seen from above: brown main axis along u, side shoots angled forward, and densely
+    /// covered with short needles all around. Alpha = needles. The mipmaps are generated with preserved coverage (otherwise
+    /// the branches thin out and vanish at a distance), and the color bleeds out into the transparent areas.
     /// </summary>
     private static ImageTexture NeedleTexture()
     {
@@ -208,7 +208,7 @@ public static class SpruceBuilder
         var rng = new Random(4242);
         float R() => (float)rng.NextDouble();
 
-        // Omriss: smal ved roten, bredest litt forbi midten, spiss tupp
+        // Outline: narrow at the root, widest a little past the middle, pointed tip
         float HalfWidth(float u) => 0.5f * Mathf.Min(1f, 0.25f + u * 1.8f) * Mathf.Pow(Mathf.Max(0f, 1f - u), 0.45f) * 0.95f;
 
         void Line(Vector2 a, Vector2 b, float width, Vector3 c, float alphaMul = 1f)
@@ -236,7 +236,7 @@ public static class SpruceBuilder
 
         Vector3 Needle()
         {
-            // Mørk, blågrønn granbar med variasjon (lyse, friske skuddspisser innimellom)
+            // Dark, blue-green spruce needles with variation (light, fresh shoot tips here and there)
             float l = 0.65f + R() * 0.5f;
             var c = new Vector3(0.07f, 0.16f, 0.1f) * l;
             if (R() < 0.08f) c = new Vector3(0.2f, 0.3f, 0.12f);
@@ -263,10 +263,10 @@ public static class SpruceBuilder
             }
         }
 
-        // Hovedakse
+        // Main axis
         var a0 = new Vector2(4, Hh * 0.5f);
         var a1 = new Vector2(W - 6, Hh * 0.5f);
-        // Sideskudd (begge sider), andre ordens skudd på de lengste
+        // Side shoots (both sides), second-order shoots on the longest ones
         for (float u = 0.04f; u < 0.94f; u += 0.035f + R() * 0.02f)
         {
             for (int side = -1; side <= 1; side += 2)
@@ -290,7 +290,7 @@ public static class SpruceBuilder
         }
         NeedledTwig(a0, a1, 1.6f, 11f);
 
-        // Fyll fargen ut i de gjennomsiktige pikslene (snittfarge), så mipmaps ikke får mørke kanter
+        // Fill the color out into the transparent pixels (average color), so mipmaps do not get dark edges
         var mean = Vector3.Zero; float wsum = 0f;
         for (int k = 0; k < rgb.Length; k++) { mean += rgb[k] * alpha[k]; wsum += alpha[k]; }
         mean /= Mathf.Max(wsum, 1f);
@@ -309,7 +309,7 @@ public static class SpruceBuilder
         return ImageTexture.CreateFromImage(img);
     }
 
-    /// <summary>Skalerer alfa i hver mipmap så like stor andel er over terskelen som i nivå 0.</summary>
+    /// <summary>Scales alpha in each mipmap so the same fraction is above the threshold as in level 0.</summary>
     internal static void PreserveCoverage(Image img, float cut)
     {
         var d = img.GetData();

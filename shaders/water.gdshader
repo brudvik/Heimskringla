@@ -2,19 +2,19 @@ shader_type spatial;
 render_mode cull_disabled, depth_draw_always, specular_schlick_ggx, ambient_light_disabled;
 #include "res://shaders/cloudshadow.gdshaderinc"
 
-// Vann for hav, innsjøer og elver.
-//  - Havet (is_ocean): Gerstner-bølger i vertex-shaderen, styrt av vinden, dempet på grunt vann
-//    (dybden slås opp i world_map) og tonet ut på avstand. Brenninger/skum mot land.
-//  - Elver/innsjøer: småkrusninger som renner med strømmen (flowmap fra world_map.ba),
-//    hvitt skum der det går fort.
+// Water for sea, lakes and rivers.
+//  - Sea (is_ocean): Gerstner waves in the vertex shader, driven by the wind, damped in shallow water
+//    (depth is looked up in world_map) and faded out with distance. Breakers/foam against the shore.
+//  - Rivers/lakes: small ripples flowing with the current (flowmap from world_map.ba),
+//    white foam where it runs fast.
 
 #include "res://shaders/wind.gdshaderinc"
 
 uniform vec3 shallow_color : source_color = vec3(0.20, 0.50, 0.55);
 uniform vec3 deep_color : source_color = vec3(0.03, 0.14, 0.24);
-uniform float wave_strength = 1.0;     // småkrusninger
+uniform float wave_strength = 1.0;     // small ripples
 uniform bool is_ocean = false;
-uniform float wave_height = 1.0;       // skalerer Gerstner-bølgene
+uniform float wave_height = 1.0;       // scales the Gerstner waves
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform float reflect_strength = 1.0;
@@ -32,7 +32,7 @@ varying float crest;
 varying float ground_h;
 varying float cam_dist;
 
-// ---------------------------------------------------------------- støy (heltalls-hash)
+// ---------------------------------------------------------------- noise (integer hash)
 float hash(vec2 p) {
 	uvec2 q = uvec2(ivec2(floor(p)) + ivec2(65536));
 	uint h = q.x * 1597334677u ^ q.y * 3812015801u;
@@ -60,7 +60,7 @@ float vnoise(vec2 p) {
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
 
-// Gradient av krusningsfeltet (to oktaver gradientstøy, endelig differanse)
+// Gradient of the ripple field (two octaves of gradient noise, finite difference)
 vec2 ripple_grad(vec2 p) {
 	p = mod(p, 1024.0);
 	float e = 0.05;
@@ -70,7 +70,7 @@ vec2 ripple_grad(vec2 p) {
 	return vec2(hx - h0, hz - h0) / e;
 }
 
-// ---------------------------------------------------------------- Himmel med skyer (samme skyer som himmelen)
+// ---------------------------------------------------------------- Sky with clouds (same clouds as the sky)
 #include "res://shaders/clouds.gdshaderinc"
 vec3 sky_color(vec3 d) {
 	float up = clamp(d.y, 0.0, 1.0);
@@ -81,10 +81,10 @@ vec3 sky_color(vec3 d) {
 }
 
 // ---------------------------------------------------------------- Gerstner
-// Én bølge: retning d, bølgelengde L, steilhet q, amplitude a. Legger til forskyvning og normal-bidrag.
+// One wave: direction d, wavelength L, steepness q, amplitude a. Adds displacement and normal contribution.
 void gerstner(vec2 p, vec2 d, float L, float a, float q, float t, inout vec3 disp, inout vec3 nrm) {
 	float k = 6.2831853 / L;
-	float c = sqrt(9.81 / k);                  // fasehastighet (dypt vann)
+	float c = sqrt(9.81 / k);                  // phase speed (deep water)
 	float f = k * (dot(d, p) - c * t);
 	float s = sin(f), co = cos(f);
 	disp.x += q * a * d.x * co;
@@ -106,9 +106,9 @@ void vertex() {
 	crest = 0.0;
 	if (is_ocean) {
 		float depth = max(world_pos.y - ground_h, 0.0);
-		float shoal = smoothstep(0.0, 12.0, depth);                  // mindre bølger på grunt vann
+		float shoal = smoothstep(0.0, 12.0, depth);                  // smaller waves in shallow water
 		float far = 1.0 - smoothstep(350.0, 1300.0, cam_dist);
-		float sea = (0.25 + wind_strength * 1.1) * wave_height;      // sjøgang etter vinden
+		float sea = (0.25 + wind_strength * 1.1) * wave_height;      // sea state from the wind
 		float amp = sea * mix(0.35, 1.0, shoal) * far;
 		vec2 wd = normalize(wind_dir + vec2(0.0001));
 		vec3 disp = vec3(0.0);
@@ -132,23 +132,23 @@ void fragment() {
 	float dist = length(VERTEX);
 	float fade = 1.0 - smoothstep(60.0, 450.0, dist);
 
-	// Strøm (elver): world_map.ba = fart i x/z (m/s)
+	// Current (rivers): world_map.ba = velocity in x/z (m/s)
 	vec2 flow = vec2(0.0);
 	if (!is_ocean) flow = texture(world_map, (world_pos.xz - world_rect.xy) * world_rect.zw).ba;
 	float speed = length(flow);
 
-	// Flowmap: to faser som glir langs strømmen og blandes, så mønsteret ikke strekkes i det uendelige
+	// Flowmap: two phases that slide along the current and are blended, so the pattern doesn't stretch indefinitely
 	float cyc = 1.6;
 	float ph0 = fract(TIME / cyc), ph1 = fract(TIME / cyc + 0.5);
 	float wgt = abs(1.0 - 2.0 * ph0);
 	vec2 rp = world_pos.xz * 0.9;
-	// Vinden lager krusninger som vandrer med den på stille vann
+	// The wind makes ripples that travel with it on still water
 	vec2 drift = wind_dir * TIME * (0.3 + wind_strength * 1.2);
 	vec2 g0 = ripple_grad(rp - flow * ph0 * cyc * 0.9 - drift);
 	vec2 g1 = ripple_grad(rp - flow * ph1 * cyc * 0.9 - drift + vec2(37.0, 11.0));
 	vec2 g = mix(g1, g0, wgt);
-	// Vindkast ("kattepoter"): flekker med krusning som feier over vannet; mellom dem er vannet
-	// nesten speilblankt i stille vær. Jo mer vind, jo mer av flaten er krusete.
+	// Gusts ("cat's paws"): rippled patches sweeping across the water; between them the water is
+	// almost mirror-smooth in calm weather. The more wind, the more of the surface is rippled.
 	float gust = wind_gust(world_pos.xz * 0.6, TIME);
 	float paws = smoothstep(0.35, 0.85, gnoise(world_pos.xz * 0.045 - wind_dir * TIME * (1.5 + wind_strength * 4.0)) * 0.9 + 0.5 + gust * 0.3 + wind_strength * 0.6);
 	float calm = mix(0.04, 1.0, paws);
@@ -156,31 +156,31 @@ void fragment() {
 	vec3 n_world = normalize(wave_normal + vec3(-g.x, 0.0, -g.y) * rip * 0.35);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 
-	// Dybde (fra dybdebufferen): hvor mye vann vi ser gjennom
+	// Depth (from the depth buffer): how much water we are looking through
 	float depth = texture(depth_tex, SCREEN_UV).r;
 	vec4 upos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	vec3 pixel_pos = upos.xyz / upos.w;
 	float water_depth = max(0.0, VERTEX.z - pixel_pos.z);
 
-	// ---- Lysbrytning: bunnen sett gjennom vannet, forvrengt av bølgene
+	// ---- Refraction: the bottom seen through the water, distorted by the waves
 	vec2 ruv = SCREEN_UV + n_world.xz * 0.035 * clamp(water_depth * 0.3, 0.0, 1.0) * fade;
 	float rd = texture(depth_tex, ruv).r;
 	vec4 rpos = INV_PROJECTION_MATRIX * vec4(ruv * 2.0 - 1.0, rd, 1.0);
 	float rdepth = VERTEX.z - rpos.z / rpos.w;
-	if (rdepth < 0.0) { ruv = SCREEN_UV; rdepth = water_depth; }   // ikke la ting foran vannet "lekke" inn
+	if (rdepth < 0.0) { ruv = SCREEN_UV; rdepth = water_depth; }   // don't let things in front of the water "leak" in
 	vec3 under = textureLod(screen_tex, ruv, 0.0).rgb;
-	// Lys absorberes: rødt først, så grønt (klart nordisk vann blir grønnblått)
+	// Light is absorbed: red first, then green (clear Nordic water turns green-blue)
 	vec3 trans = exp(-max(rdepth, 0.0) * vec3(0.42, 0.11, 0.075) * (is_ocean ? 1.0 : 1.4));
 	float dt = clamp(water_depth / 9.0, 0.0, 1.0);
 	vec3 body = mix(shallow_color, deep_color, dt);
-	body += vec3(0.02, 0.09, 0.08) * crest * (1.0 - dt * 0.5);   // lys gjennom bølgetoppene
+	body += vec3(0.02, 0.09, 0.08) * crest * (1.0 - dt * 0.5);   // light through the wave crests
 
-	// Skum: langs land, på bølgetopper, i stryk
+	// Foam: along the shore, on wave crests, in rapids
 	float fn = vnoise(world_pos.xz * 1.7 - flow * TIME * 1.2) * 0.6 + vnoise(world_pos.xz * 5.3 - flow * TIME * 1.6) * 0.4;
 	float shore = 1.0 - smoothstep(0.0, 0.18 + wind_strength * 0.25, water_depth);
 	float foam = shore * smoothstep(0.5, 0.8, fn + shore * 0.15) * 0.8;
 	if (is_ocean) {
-		// Brenninger: skumlinjer som ruller inn mot land på grunt vann
+		// Breakers: foam lines rolling in towards the shore in shallow water
 		float gd = max(world_pos.y - ground_h, 0.0);
 		float surf = (1.0 - smoothstep(0.3, 1.5 + wind_strength * 2.5, gd)) * smoothstep(0.0, 0.3, gd);
 		float bands = smoothstep(0.75, 0.95, sin(gd * 2.2 + TIME * 1.4 + fn * 2.0) * 0.5 + 0.5);
@@ -191,12 +191,12 @@ void fragment() {
 	}
 	foam = clamp(foam, 0.0, 1.0);
 
-	// ---- Speiling: skjermrom-sporing mot dybdebufferen (fjell, trær, strand), ellers himmel
-	vec3 rv = reflect(-VIEW, NORMAL);                  // visningsrom
+	// ---- Reflection: screen-space tracing against the depth buffer (mountains, trees, shore), otherwise sky
+	vec3 rv = reflect(-VIEW, NORMAL);                  // view space
 	vec3 rw = (INV_VIEW_MATRIX * vec4(rv, 0.0)).xyz;
 	rw.y = abs(rw.y);
 	vec3 sky = sky_color(normalize(rw));
-	// I sterk vind er speilingen oppbrutt: bland mot horisontfargen (ingen skarpe skyer i krappe bølger)
+	// In strong wind the reflection is broken up: blend towards the horizon color (no sharp clouds in choppy waves)
 	sky = mix(sky, pow(mix(sky_horizon, sky_zenith, 0.35), vec3(2.2)), clamp(rip * 0.5 - 0.05, 0.0, 0.5));
 	vec3 refl = sky;
 	float hit = 0.0;
@@ -213,9 +213,9 @@ void fragment() {
 			float sd = texture(depth_tex, suv).r;
 			vec4 sp = INV_PROJECTION_MATRIX * vec4(suv * 2.0 - 1.0, sd, 1.0);
 			float sz = sp.z / sp.w;
-			float diff = sz - p.z;                     // > 0: strålen er bak overflaten
+			float diff = sz - p.z;                     // > 0: the ray is behind the surface
 			if (diff > 0.0 && diff < stp * 2.5 + 1.0) {
-				// Finjuster treffet (binærsøk)
+				// Refine the hit (binary search)
 				vec3 a = p - rv * stp / 1.12, b = p;
 				for (int k = 0; k < 5; k++) {
 					vec3 m = (a + b) * 0.5;
@@ -236,11 +236,11 @@ void fragment() {
 
 	float fres = 0.02 + 0.98 * pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 5.0);
 	fres = clamp(fres * 1.15, 0.0, 1.0) * (1.0 - foam);
-	// Sluttfarge: bunnen (gjennom vannet) + spredt lys i vannet + speiling
+	// Final color: the bottom (through the water) + scattered light in the water + reflection
 	float scatter = 1.0 - (trans.r + trans.g + trans.b) / 3.0;
-	vec3 lit_body = body * scatter;                     // belyses av sol/himmel (ALBEDO)
+	vec3 lit_body = body * scatter;                     // lit by sun/sky (ALBEDO)
 	ALBEDO = mix(lit_body * (1.0 - fres) * cloud_shade(VERTEX, INV_VIEW_MATRIX), vec3(0.9, 0.95, 1.0), foam * 0.85);
-	// Omgivelseslys (motorens er slått av for vannet, så himmelen ikke speiles to ganger)
+	// Ambient light (the engine's is disabled for the water, so the sky isn't reflected twice)
 	vec3 amb = pow(mix(sky_horizon, sky_zenith, 0.5), vec3(2.2));
 	EMISSION = under * trans * (1.0 - foam) * (1.0 - fres) + refl * fres * reflect_strength + ALBEDO * amb * 0.6;
 	if (wetness > 0.05) {
@@ -251,7 +251,7 @@ void fragment() {
 		float ring = smoothstep(0.05, 0.0, abs(r - ph * 0.5)) * (1.0 - ph) * step(hash(cell + 1.7), wetness);
 		ALBEDO += vec3(0.25) * ring * fade;
 	}
-	// Myk overgang mot land (ingen skarp kant)
+	// Soft transition to the shore (no hard edge)
 	ALPHA = clamp(smoothstep(0.0, 0.25, water_depth) + foam, 0.0, 1.0);
 	ROUGHNESS = mix(0.02 + rip * 0.08, 0.6, foam);
 	METALLIC = 0.0;

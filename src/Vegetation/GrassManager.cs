@@ -6,7 +6,7 @@ using Heimskringla.World;
 
 namespace Heimskringla.Vegetation;
 
-/// <summary>Gresstuster i 32 m-celler nær spilleren, med vind og avstandsfading i shaderen.</summary>
+/// <summary>Grass tufts in 32 m cells near the player, with wind and distance fading in the shader.</summary>
 public partial class GrassManager : Node3D
 {
     private const float CellSize = 32f;
@@ -83,12 +83,12 @@ public partial class GrassManager : Node3D
             var biome = Biomes.Classify(h, temp, moist, ny);
             float density = BiomeDensity[(int)biome] * Biomes.SmoothStep(0.66f, 0.84f, ny)
                             * (1f - w.TrailMask(x, z, h, ny));
-            // Under tett skog er det for mørkt for mye gress (bregner og mose tar over); lysningene er grønne
+            // Under dense forest it is too dark for much grass (ferns and moss take over); clearings are green
             if (biome is Biome.Forest or Biome.PineForest)
                 density *= 1f - 0.65f * Biomes.SmoothStep(-0.35f, 0.35f, w.ForestClump(x, z));
             if (roll >= density) continue;
             var col = Biomes.GroundColor(h, temp, moist, ny, w.GetRock(x, z));
-            // Større tuster der det er frodig, og "enger" med høyere gress
+            // Larger tufts where it is lush, and "meadows" with taller grass
             float meadow = w.ColorNoise(x * 0.15f, z * 0.15f) * 0.5f + 0.5f;
             float s = (0.75f + sc * 0.5f) * (0.8f + meadow * 0.45f) * (0.8f + moist * 0.4f);
             var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(s, s, s));

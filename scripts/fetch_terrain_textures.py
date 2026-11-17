@@ -1,23 +1,23 @@
-"""Laster ned CC0-terrengteksturer fra ambientCG og pakker dem til to Texture2DArray-bilder for terrengshaderen.
+"""Downloads CC0 terrain textures from ambientCG and packs them into two Texture2DArray images for the terrain shader.
 
-Bruk:
-    python scripts/fetch_terrain_textures.py [zip-mappe] [utpakket-mappe]
+Usage:
+    python scripts/fetch_terrain_textures.py [zip-dir] [extracted-dir]
 
-Standard: zip-mappe = D:/3dmodels/zip/ambientcg, utpakket-mappe = D:/3dmodels/extracted/ambientcg
+Default: zip-dir = D:/3dmodels/zip/ambientcg, extracted-dir = D:/3dmodels/extracted/ambientcg
 
-Steg:
-  1. Laster ned <id>_2K-JPG.zip for hvert lag i LAYERS (hoppes over hvis zip-en finnes).
-  2. Pakker ut til <utpakket>/<id>/ (bare bildefiler, bare filnavn - ingen stier fra zip-en brukes).
-  3. Skalerer til SIZE og pakker lagene oppå hverandre (1 lag = 1 skive). Terrenglagene og
-     detaljlagene (bark/mose til trær og steiner, prefiks "detail_") pakkes hver for seg:
-       assets/terrain/terrain_albedo.png  RGB = farge (sRGB), A = høyde (til høydeblanding)
-       assets/terrain/terrain_nrao.png    R,G = normal x,y (OpenGL), B = ruhet, A = AO
-  4. Skriver .import-filer så Godot importerer dem som komprimerte Texture2DArray med mipmaps,
-     og assets/terrain/terrain_layers.json med snittfargen til hvert lag (lineær), som shaderen
-     bruker til å tone teksturene mot sonefargene i terrenget.
+Steps:
+  1. Downloads <id>_2K-JPG.zip for each layer in LAYERS (skipped if the zip exists).
+  2. Extracts to <extracted>/<id>/ (image files only, file names only - no paths from the zip are used).
+  3. Scales to SIZE and stacks the layers on top of each other (1 layer = 1 slice). The terrain layers and
+     the detail layers (bark/moss for trees and rocks, prefix "detail_") are packed separately:
+       assets/terrain/terrain_albedo.png  RGB = color (sRGB), A = height (for height blending)
+       assets/terrain/terrain_nrao.png    R,G = normal x,y (OpenGL), B = roughness, A = AO
+  4. Writes .import files so Godot imports them as compressed Texture2DArrays with mipmaps,
+     and assets/terrain/terrain_layers.json with the mean color of each layer (linear), which the shader
+     uses to tint the textures towards the zone colors of the terrain.
 
-Rekkefølgen i LAYERS er lag-indeksene i shaderen (shaders/terrain.gdshader) og i
-Biomes.GroundWeights - endres den, må de endres også.
+The order of LAYERS defines the layer indices in the shader (shaders/terrain.gdshader) and in
+Biomes.GroundWeights - if it changes, those must change too.
 """
 import io
 import json
@@ -32,23 +32,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "terrain")
 SIZE = 1024
 
-# Detaljteksturer for props (bark og mose på trær/steiner): assets/terrain/detail_albedo.png / detail_nrao.png
+# Detail textures for props (bark and moss on trees/rocks): assets/terrain/detail_albedo.png / detail_nrao.png
 DETAIL_LAYERS = [
-    ("Bark014", "bark (gran/furu)"),
-    ("Bark012", "bark (løvtre)"),
-    ("Moss002", "mose"),
+    ("Bark014", "bark (spruce/pine)"),
+    ("Bark012", "bark (deciduous)"),
+    ("Moss002", "moss"),
 ]
 
-# (ambientCG-id, navn) - rekkefølgen = lagindeks
+# (ambientCG id, name) - order = layer index
 LAYERS = [
-    ("Grass004", "eng"),
-    ("Ground037", "lauvskogbunn"),
-    ("Ground071", "barskogbunn"),
-    ("Ground068", "lynghei/myr/jord"),
-    ("Rock030", "berg"),
-    ("Gravel041", "ur/grus"),
+    ("Grass004", "meadow"),
+    ("Ground037", "deciduous forest floor"),
+    ("Ground071", "conifer forest floor"),
+    ("Ground068", "heath/bog/soil"),
+    ("Rock030", "rock"),
+    ("Gravel041", "scree/gravel"),
     ("Ground080", "sand"),
-    ("Snow010A", "snø"),
+    ("Snow010A", "snow"),
 ]
 
 UA = {"User-Agent": "heimskringla-asset-script"}
@@ -60,11 +60,11 @@ def download(asset_id, zip_dir):
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return path
     url = f"https://ambientcg.com/get?file={asset_id}_2K-JPG.zip"
-    print(f"  laster ned {url}")
+    print(f"  downloading {url}")
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req) as r:
         data = r.read()
-    zipfile.ZipFile(io.BytesIO(data))  # sjekk at det er en gyldig zip før vi lagrer
+    zipfile.ZipFile(io.BytesIO(data))  # check that it is a valid zip before saving
     with open(path, "wb") as f:
         f.write(data)
     return path
@@ -118,7 +118,7 @@ def build(layers, prefix, zip_dir, ext_dir):
         ao = load(find_map(folder, "AmbientOcclusion"), "L", 255)
         disp = load(find_map(folder, "Displacement"), "L", 128)
 
-        # Strekk høyden til hele 0..255 (lagene skal kunne konkurrere likt i høydeblandingen)
+        # Stretch the height to the full 0..255 (so the layers compete equally in the height blend)
         lo, hi = disp.getextrema()
         if hi > lo:
             disp = disp.point(lambda v, lo=lo, hi=hi: int((v - lo) * 255 / (hi - lo)))
@@ -163,11 +163,11 @@ def main():
     with open(lic, "a", encoding="utf-8", newline="\n") as f:
         if "ambientCG" not in text:
             f.write("\n## assets/terrain/ - ambientCG (CC0 1.0)\n\n")
-            f.write("Teksturer fra https://ambientcg.com, lisens CC0 1.0 (ingen kreditering påkrevd):\n")
+            f.write("Textures from https://ambientcg.com, license CC0 1.0 (no attribution required):\n")
         for asset_id, name in LAYERS + DETAIL_LAYERS:
             if asset_id not in text:
                 f.write(f"- {asset_id} ({name}) - https://ambientcg.com/view?id={asset_id}\n")
-    print("Ferdig:", OUT)
+    print("Done:", OUT)
 
 
 if __name__ == "__main__":

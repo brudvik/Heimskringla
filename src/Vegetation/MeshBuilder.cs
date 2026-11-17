@@ -5,8 +5,8 @@ using Godot;
 namespace Heimskringla.Vegetation;
 
 /// <summary>
-/// Enkel byggeklasse for flatskyggede low-poly-mesher med vertexfarger.
-/// Trekanter orienteres automatisk utover fra et oppgitt senterpunkt.
+/// Simple builder class for flat-shaded low-poly meshes with vertex colors.
+/// Triangles are automatically oriented outward from a given center point.
 /// </summary>
 public sealed class MeshBuilder
 {
@@ -30,7 +30,7 @@ public sealed class MeshBuilder
         _c.Add(col); _c.Add(col); _c.Add(col);
     }
 
-    /// <summary>Vertikalt prisme/kjegle fra y0 til y0+h, sentrert på (bx, bz).</summary>
+    /// <summary>Vertical prism/cone from y0 to y0+h, centered on (bx, bz).</summary>
     public void Prism(Vector3 basePos, int seg, float r0, float r1, float h, Color col, Random rng = null,
                       float colJitter = 0f, Color? capColor = null, bool bottomCap = true, float twist = 0f)
     {
@@ -94,7 +94,7 @@ public sealed class MeshBuilder
         return mesh;
     }
 
-    // ---------------- Icosphere-data (cachet per subdiv-nivå)
+    // ---------------- Icosphere data (cached per subdiv level)
     private static readonly Dictionary<int, (List<Vector3>, List<(int, int, int)>)> IcoCache = new();
 
     private static (List<Vector3>, List<(int, int, int)>) IcoData(int subdiv)

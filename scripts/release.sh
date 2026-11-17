@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Lager en Windows-release av Heimskringla og (valgfritt) publiserer den på GitHub.
+# Builds a Windows release of Heimskringla and (optionally) publishes it on GitHub.
 #
-# Bruk:  scripts/release.sh [versjon] [--publish] [--notes <fil>]
-#   versjon     f.eks. 0.2.0. Utelatt: øker patch-nummeret fra siste v*-tag (0.1.0 -> 0.1.1).
-#   --publish   committer versjonsnummeret, tagger vX.Y.Z, pusher og lager GitHub-release med zip-en.
-#   --notes     markdown-fil med release-notater. Utelatt: commit-listen siden forrige tag
-#               pluss en fast "Download & run"-del.
+# Usage:  scripts/release.sh [version] [--publish] [--notes <file>]
+#   version     e.g. 0.2.0. Omitted: bumps the patch number from the latest v* tag (0.1.0 -> 0.1.1).
+#   --publish   commits the version number, tags vX.Y.Z, pushes and creates a GitHub release with the zip.
+#   --notes     markdown file with release notes. Omitted: the commit list since the previous tag
+#               plus a fixed "Download & run" section.
 #
-# Resultat: build/heimskringla-YYYY-MM-DD-X.Y.Z.zip (mappa Heimskringla/ med exe, .NET-runtime og lisenser).
-# Krever: Godot 4.7.2 mono i tools/, eksportmaler 4.7.2.stable.mono, python, gh (for --publish).
+# Output: build/heimskringla-YYYY-MM-DD-X.Y.Z.zip (folder Heimskringla/ with the exe, .NET runtime and licenses).
+# Requires: Godot 4.7.2 mono in tools/, export templates 4.7.2.stable.mono, python, gh (for --publish).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,38 +31,38 @@ if [ -z "$VERSION" ]; then
     VERSION="0.1.0"
   fi
 fi
-[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Ugyldig versjon: $VERSION (forventer X.Y.Z)"; exit 1; }
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid version: $VERSION (expected X.Y.Z)"; exit 1; }
 TAG="v$VERSION"
 DATE="$(date +%Y-%m-%d)"
 ZIP="build/heimskringla-$DATE-$VERSION.zip"
 
 if [ "$PUBLISH" = 1 ]; then
-  [ -z "$(git status --porcelain)" ] || { echo "Arbeidskopien er ikke ren - commit først."; exit 1; }
-  git rev-parse -q --verify "refs/tags/$TAG" > /dev/null && { echo "Taggen $TAG finnes allerede."; exit 1; }
+  [ -z "$(git status --porcelain)" ] || { echo "Working copy is not clean - commit first."; exit 1; }
+  git rev-parse -q --verify "refs/tags/$TAG" > /dev/null && { echo "Tag $TAG already exists."; exit 1; }
 fi
 
 echo "== Heimskringla $VERSION ($DATE)"
 
-# Versjonsnummer i exe-ens filinfo
+# Version number in the exe's file info
 sed -i -E "s/^application\/(file|product)_version=\".*\"/application\/\1_version=\"$VERSION.0\"/" export_presets.cfg
 
 GODOT="tools/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe"
 OUT="build/windows"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
-echo "== Bygger C#"
+echo "== Building C#"
 dotnet build -nologo -v q -c Release > /dev/null
 
-echo "== Eksporterer (kan ta 10-15 min)"
+echo "== Exporting (may take 10-15 min)"
 timeout 1800 "$GODOT" --headless --path . --export-release "Windows Desktop" "$OUT/Heimskringla.exe" > build/export.log 2>&1 || true
 if grep -q "^ERROR" build/export.log || [ ! -f "$OUT/Heimskringla.exe" ] || [ ! -f "$OUT"/data_Heimskringla_windows_x86_64/Heimskringla.dll ]; then
-  echo "Eksporten feilet - se build/export.log"; grep "^ERROR" build/export.log | sort | uniq | head; exit 1
+  echo "Export failed - see build/export.log"; grep "^ERROR" build/export.log | sort | uniq | head; exit 1
 fi
 
 cp assets/LICENSES.md "$OUT/THIRD-PARTY-LICENSES.md"
 cp assets/fonts/OFL-Cinzel.txt "$OUT/"
 
-echo "== Pakker $ZIP"
+echo "== Packing $ZIP"
 rm -f "$ZIP"
 python - "$OUT" "$ZIP" <<'PY'
 import os, sys, zipfile
@@ -76,14 +76,14 @@ PY
 ls -la "$ZIP"
 
 if [ "$PUBLISH" != 1 ]; then
-  git checkout -q -- export_presets.cfg   # versjonsnummeret committes bare ved --publish
-  echo "Ferdig (ikke publisert). Kjør med --publish for å legge ut på GitHub."; exit 0
+  git checkout -q -- export_presets.cfg   # the version number is only committed with --publish
+  echo "Done (not published). Run with --publish to publish on GitHub."; exit 0
 fi
 
-echo "== Publiserer $TAG"
+echo "== Publishing $TAG"
 if [ -n "$(git status --porcelain export_presets.cfg)" ]; then
   git add export_presets.cfg
-  git commit -q -m "Versjon $VERSION" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+  git commit -q -m "Version $VERSION" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 fi
 git push -q origin HEAD
 git tag -a "$TAG" -m "Heimskringla $VERSION"
@@ -93,7 +93,7 @@ if [ -z "$NOTES" ]; then
   NOTES="build/release-notes.md"
   {
     echo "## Changes"
-    if [ -n "$PREV_TAG" ]; then git log --no-merges --format='- %s' "$PREV_TAG..$TAG" | grep -v "^- Versjon $VERSION$" || true
+    if [ -n "$PREV_TAG" ]; then git log --no-merges --format='- %s' "$PREV_TAG..$TAG" | grep -v "^- Version $VERSION$" || true
     else git log --no-merges --format='- %s' "$TAG"; fi
     echo
     echo "## Download & run"

@@ -1,26 +1,26 @@
-"""Pakker ut CC0-modellpakker og kopierer et kuratert utvalg inn i prosjektets assets/-mappe.
+"""Extracts CC0 model packs and copies a curated selection into the project's assets/ folder.
 
-Bruk:
-    python scripts/import_assets.py [zip-mappe] [utpakket-mappe]
+Usage:
+    python scripts/import_assets.py [zip-dir] [extracted-dir]
 
-Standard: zip-mappe = D:/3dmodels/zip, utpakket-mappe = D:/3dmodels/extracted
+Default: zip-dir = D:/3dmodels/zip, extracted-dir = D:/3dmodels/extracted
 
-Steg:
-  1. Hver .zip pakkes ut til <utpakket>/<pakkenavn> (hoppes over hvis mappen finnes).
-  2. Utvalgte filer kopieres til assets/ (glTF + .bin + teksturer som glTF-en refererer til).
+Steps:
+  1. Each .zip is extracted to <extracted>/<packname> (skipped if the folder exists).
+  2. Selected files are copied to assets/ (glTF + .bin + the textures the glTF references).
 
-Strukturen i assets/:
-  assets/nature/        Quaternius Stylized Nature MegaKit (trær, busker, steiner, blomster, sopp)
-  assets/characters/    Quaternius Universal Base Characters (figur + hår/skjegg)
+Structure of assets/:
+  assets/nature/        Quaternius Stylized Nature MegaKit (trees, bushes, rocks, flowers, mushrooms)
+  assets/characters/    Quaternius Universal Base Characters (character + hair/beard)
   assets/animations/    Quaternius Universal Animation Library (UAL1_Standard.glb)
-  assets/survival/      Kenney Survival Kit (verktøy, ressurser, leir) - GLB + Textures/
-  assets/kenney_nature/ Kenney Nature Kit - steinsøyler og store steiner (former til klippeformasjoner)
-  assets/outfits/       Quaternius Modular Character Outfits - Fantasy (Peasant/Ranger, samme skjelett)
-  assets/nature_lowpoly/ Quaternius Ultimate Nature Pack (snøtrær, stubber, mosesteiner) - konvertert
-                        fra .blend til .glb med Blender (scripts/blender_batch_export.py)
-  assets/LICENSES.md    Lisensoversikt (alle CC0)
+  assets/survival/      Kenney Survival Kit (tools, resources, camp) - GLB + Textures/
+  assets/kenney_nature/ Kenney Nature Kit - rock pillars and large rocks (shapes for cliff formations)
+  assets/outfits/       Quaternius Modular Character Outfits - Fantasy (Peasant/Ranger, same skeleton)
+  assets/nature_lowpoly/ Quaternius Ultimate Nature Pack (snowy trees, stumps, mossy rocks) - converted
+                        from .blend to .glb with Blender (scripts/blender_batch_export.py)
+  assets/LICENSES.md    License overview (all CC0)
 
-Skriptet er idempotent: kjør det igjen etter at du har lagt til nye pakker eller endret utvalget.
+The script is idempotent: run it again after adding new packs or changing the selection.
 """
 import json
 import os
@@ -32,7 +32,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "assets")
 
-# Hvilke MegaKit-modeller som brukes (regex mot filnavn uten endelse)
+# Which MegaKit models are used (regex against file name without extension)
 NATURE_MODELS = r"^(CommonTree_\d|Pine_\d|TwistedTree_\d|DeadTree_\d|Bush_Common.*|Fern_1|Plant_1.*|Plant_7.*|" \
                 r"Rock_Medium_\d|Pebble_.*|Flower_.*_Group|Mushroom_.*|Clover_\d|Grass_.*)$"
 SURVIVAL_MODELS = r"^(tool-.*|resource-.*|tree-log.*|tree-trunk|campfire-.*|workbench.*|chest|barrel|bedroll.*|tent.*|" \
@@ -58,15 +58,15 @@ def unpack(zip_dir, out_dir):
         pack = re.sub(r"\[.*?\]", "", os.path.splitext(name)[0]).strip().replace(" ", "_")
         dest = os.path.join(out_dir, pack)
         if os.path.isdir(dest):
-            print(f"  (finnes) {pack}")
+            print(f"  (exists) {pack}")
             continue
-        print(f"  pakker ut {name} -> {dest}")
+        print(f"  extracting {name} -> {dest}")
         with zipfile.ZipFile(os.path.join(zip_dir, name)) as z:
             z.extractall(dest)
 
 
 def find_dir(base, *parts_contains):
-    """Finn første mappe under base hvis sti inneholder alle gitte deler."""
+    """Find the first folder under base whose path contains all the given parts."""
     for dirpath, _, _ in os.walk(base):
         p = dirpath.replace("\\", "/")
         if all(part in p for part in parts_contains):
@@ -75,7 +75,7 @@ def find_dir(base, *parts_contains):
 
 
 def copy_gltf(src_path, dest_dir, tex_search_dirs=()):
-    """Kopierer en .gltf med tilhørende .bin og teksturer (bilder ved siden av eller i søkemapper)."""
+    """Copies a .gltf with its .bin and textures (images next to it or in the search folders)."""
     os.makedirs(dest_dir, exist_ok=True)
     shutil.copy2(src_path, dest_dir)
     g = json.load(open(src_path, encoding="utf-8"))
@@ -84,7 +84,7 @@ def copy_gltf(src_path, dest_dir, tex_search_dirs=()):
     for uri in refs:
         if not uri or uri.startswith("data:"):
             continue
-        # Noen pakker refererer "X_png.png" mens filen heter "X.png"
+        # Some packs reference "X_png.png" while the file is named "X.png"
         names = [uri] + ([uri.replace("_png.png", ".png")] if uri.endswith("_png.png") else [])
         candidates = [os.path.join(d, nm) for nm in names for d in (src_dir, *tex_search_dirs)]
         for cand in candidates:
@@ -95,17 +95,17 @@ def copy_gltf(src_path, dest_dir, tex_search_dirs=()):
                     shutil.copy2(cand, target)
                 break
         else:
-            print(f"    ADVARSEL: fant ikke {uri} for {os.path.basename(src_path)}")
+            print(f"    WARNING: could not find {uri} for {os.path.basename(src_path)}")
 
 
 def main():
     zip_dir = sys.argv[1] if len(sys.argv) > 1 else "D:/3dmodels/zip"
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "D:/3dmodels/extracted"
-    print("1) Pakker ut")
+    print("1) Extracting")
     unpack(zip_dir, out_dir)
 
-    print("2) Kopierer utvalg til assets/")
-    # Natur
+    print("2) Copying selection to assets/")
+    # Nature
     src = find_dir(out_dir, "Stylized_Nature_MegaKit", "/glTF")
     n = 0
     if src:
@@ -113,9 +113,9 @@ def main():
             if f.endswith(".gltf") and re.match(NATURE_MODELS, f[:-5]):
                 copy_gltf(os.path.join(src, f), os.path.join(ASSETS, "nature"))
                 n += 1
-    print(f"  natur: {n} modeller")
+    print(f"  nature: {n} models")
 
-    # Figurer
+    # Characters
     src = find_dir(out_dir, "Universal_Base_Characters", "Base Characters/Godot")
     n = 0
     if src:
@@ -132,16 +132,16 @@ def main():
             if os.path.isfile(p):
                 copy_gltf(p, os.path.join(ASSETS, "characters"))
                 n += 1
-    print(f"  figurer/hår: {n} filer")
+    print(f"  characters/hair: {n} files")
 
-    # Animasjoner
+    # Animations
     src = find_dir(out_dir, "Universal_Animation_Library", "Unreal-Godot")
     if src:
         os.makedirs(os.path.join(ASSETS, "animations"), exist_ok=True)
         shutil.copy2(os.path.join(src, "UAL1_Standard.glb"), os.path.join(ASSETS, "animations"))
-        print("  animasjoner: UAL1_Standard.glb")
+        print("  animations: UAL1_Standard.glb")
 
-    # Kenney Survival Kit (GLB refererer til Textures/colormap.png)
+    # Kenney Survival Kit (GLB references Textures/colormap.png)
     src = find_dir(out_dir, "kenney_survival-kit", "GLB format")
     n = 0
     if src:
@@ -153,9 +153,9 @@ def main():
                 n += 1
         for t in os.listdir(os.path.join(src, "Textures")):
             shutil.copy2(os.path.join(src, "Textures", t), os.path.join(dest, "Textures"))
-    print(f"  survival: {n} modeller")
+    print(f"  survival: {n} models")
 
-    # Kenney Nature Kit: steinformasjoner (formen brukes, materialet byttes i spillet)
+    # Kenney Nature Kit: rock formations (the shape is used, the material is replaced in-game)
     src = find_dir(out_dir, "kenney_nature-kit", "GLTF format")
     n = 0
     if src:
@@ -165,9 +165,9 @@ def main():
             if f.endswith(".glb") and re.match(KENNEY_NATURE_MODELS, f[:-4]):
                 shutil.copy2(os.path.join(src, f), dest)
                 n += 1
-    print(f"  kenney natur: {n} modeller")
+    print(f"  kenney nature: {n} models")
 
-    # Antrekk (komplette figurer med klær, samme 65-beins skjelett som UAL)
+    # Outfits (complete characters with clothes, same 65-bone skeleton as UAL)
     src = find_dir(out_dir, "Modular_Character_Outfits", "glTF (Godot-Unreal)/Outfits")
     n = 0
     if src:
@@ -182,9 +182,9 @@ def main():
             if os.path.isfile(p):
                 copy_gltf(p, os.path.join(ASSETS, "outfits"))
                 n += 1
-    print(f"  antrekk: {n} filer")
+    print(f"  outfits: {n} files")
 
-    # Ultimate Nature Pack: kun .blend/FBX -> konverter med Blender
+    # Ultimate Nature Pack: .blend/FBX only -> convert with Blender
     src = find_dir(out_dir, "Ultimate_Nature_Pack", "/Blends")
     if src:
         import subprocess
@@ -194,15 +194,15 @@ def main():
             r = subprocess.run([blender, "-b", "--factory-startup", "--python", script, "--", src,
                                 os.path.join(ASSETS, "nature_lowpoly"), LOWPOLY_MODELS],
                                capture_output=True, text=True, timeout=900)
-            last = [l for l in r.stdout.splitlines() if "ferdig" in l]
-            print("  lowpoly: " + (last[-1] if last else "Blender ga ingen utdata"))
+            last = [l for l in r.stdout.splitlines() if "done:" in l]
+            print("  lowpoly: " + (last[-1] if last else "Blender produced no output"))
         except Exception as e:  # noqa: BLE001
-            print(f"  lowpoly: hoppet over ({e}) - installer Blender eller kjør blender_batch_export.py manuelt")
+            print(f"  lowpoly: skipped ({e}) - install Blender or run blender_batch_export.py manually")
 
     with open(os.path.join(ASSETS, "LICENSES.md"), "w", encoding="utf-8") as f:
-        f.write("# Lisenser for tredjeparts-assets\n\n"
-                "Alle pakker er CC0 1.0 (public domain). Kreditering er ikke påkrevd, men gis gjerne.\n\n"
-                "| Mappe | Pakke | Skaper |\n|---|---|---|\n"
+        f.write("# Licenses for third-party assets\n\n"
+                "All packs are CC0 1.0 (public domain). Attribution is not required, but appreciated.\n\n"
+                "| Folder | Pack | Creator |\n|---|---|---|\n"
                 "| nature/ | Stylized Nature MegaKit | Quaternius (quaternius.com) |\n"
                 "| characters/ | Universal Base Characters | Quaternius |\n"
                 "| animations/ | Universal Animation Library | Quaternius |\n"
@@ -210,8 +210,8 @@ def main():
                 "| outfits/ | Modular Character Outfits - Fantasy | Quaternius |\n"
                 "| nature_lowpoly/ | Ultimate Nature Pack (Jun 2019) | Quaternius |\n"
                 "| kenney_nature/ | Nature Kit | Kenney (kenney.nl) |\n\n"
-                "Alle pakker ligger også utpakket i D:/3dmodels/extracted.\n")
-    print("Ferdig.")
+                "All packs are also available extracted in D:/3dmodels/extracted.\n")
+    print("Done.")
 
 
 if __name__ == "__main__":

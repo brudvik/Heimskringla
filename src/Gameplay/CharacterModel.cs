@@ -5,8 +5,8 @@ using Heimskringla.Vegetation;
 namespace Heimskringla.Gameplay;
 
 /// <summary>
-/// Animert figur: Quaternius Universal Base Character + skjegg/hår, med animasjoner fra
-/// Universal Animation Library (samme skjelett). Verktøy fra Kenney Survival Kit i høyre hånd.
+/// Animated character: Quaternius Universal Base Character + beard/hair, with animations from
+/// Universal Animation Library (same skeleton). Tools from Kenney Survival Kit in the right hand.
 /// </summary>
 public partial class CharacterModel : PlayerVisual
 {
@@ -20,7 +20,7 @@ public partial class CharacterModel : PlayerVisual
         "res://assets/characters/Hair_Long.gltf",
     };
 
-    // Plassering av verktøy i hånden (justert mot hand_r-beinet)
+    // Placement of tools in the hand (aligned to the hand_r bone)
     public static Vector3 ToolOffset = new(0.0f, 0.08f, 0.02f);
     public static Vector3 ToolRotationDeg = new(90f, 0f, 0f);
     public const float ToolScale = 2.7f;
@@ -41,16 +41,16 @@ public partial class CharacterModel : PlayerVisual
 
     public override void _Ready()
     {
-        // glTF-figurer ser mot +Z; spilleren forventer -Z
+        // glTF characters face +Z; the player expects -Z
         var body = GD.Load<PackedScene>(BodyPath).Instantiate<Node3D>();
         body.Rotation = new Vector3(0, Mathf.Pi, 0);
         AddChild(body);
         var skel = (Skeleton3D)body.FindChildren("*", "Skeleton3D", true, false)[0];
 
-        // Antrekket (Male_Peasant) har ikke hode: hent hode, øyne og øyenbryn fra grunnfiguren
+        // The outfit (Male_Peasant) has no head: take head, eyes and eyebrows from the base character
         if (BodyPath != BasePath && ResourceLoader.Exists(BasePath)) AttachHead(skel);
 
-        // Hår og skjegg er rigget til samme skjelett: flytt meshene inn i figurens Skeleton3D
+        // Hair and beard are rigged to the same skeleton: move the meshes into the character's Skeleton3D
         foreach (var path in HairPaths)
         {
             if (!ResourceLoader.Exists(path)) continue;
@@ -62,7 +62,7 @@ public partial class CharacterModel : PlayerVisual
                 mi.GetParent().RemoveChild(mi);
                 skel.AddChild(mi);
                 mi.Skeleton = mi.GetPathTo(skel);
-                // Blondt/rødlig vikinghår
+                // Blond/reddish viking hair
                 for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
                     if (mi.Mesh.SurfaceGetMaterial(s) is BaseMaterial3D hm)
                     {
@@ -74,12 +74,12 @@ public partial class CharacterModel : PlayerVisual
             hair.QueueFree();
         }
 
-        // Animasjoner: kopier biblioteket fra UAL og spill det på figuren
+        // Animations: copy the library from UAL and play it on the character
         var ual = GD.Load<PackedScene>(AnimPath).Instantiate();
         var srcPlayer = (AnimationPlayer)ual.FindChildren("*", "AnimationPlayer", true, false)[0];
         var lib = (AnimationLibrary)srcPlayer.GetAnimationLibrary("").Duplicate(true);
         ual.Free();
-        // Godot-importen fjerner "_Loop"-suffikset og setter løkke selv. Vi slår opp begge varianter.
+        // The Godot import strips the "_Loop" suffix and sets looping itself. We look up both variants.
         foreach (var name in lib.GetAnimationList())
         {
             string n = name.ToString();
@@ -105,10 +105,10 @@ public partial class CharacterModel : PlayerVisual
         }
         Play("Idle_Loop", 1f);
 
-        // Verktøy
+        // Tools
         var hand = new BoneAttachment3D { BoneName = "hand_r" };
         skel.AddChild(hand);
-        var rotEnv = OS.GetEnvironment("HK_TOOLROT");   // testhjelp: "x,y,z" i grader
+        var rotEnv = OS.GetEnvironment("HK_TOOLROT");   // test helper: "x,y,z" in degrees
         if (!string.IsNullOrEmpty(rotEnv))
         {
             var p = rotEnv.Split(',');
@@ -127,7 +127,7 @@ public partial class CharacterModel : PlayerVisual
     private TwoBoneIK3D _ik;
     private float _ikWeight;
 
-    /// <summary>Fotplassering (egen modifikator) + TwoBoneIK3D for begge ben.</summary>
+    /// <summary>Foot placement (custom modifier) + TwoBoneIK3D for both legs.</summary>
     private void SetupFootIK(Skeleton3D skel)
     {
         if (skel.FindBone("thigh_l") < 0) return;
@@ -157,10 +157,10 @@ public partial class CharacterModel : PlayerVisual
 
     private static Shader ToolShader;
 
-    /// <summary>Tre/stål-materialet for en Kenney-verktøyflate (null hvis den ikke har palett-tekstur).</summary>
+    /// <summary>The wood/steel material for a Kenney tool surface (null if it has no palette texture).</summary>
     /// <summary>
-    /// Finner treffpunktet i slaganimasjonen: øyeblikket hånda (og dermed øksehodet) går raskest,
-    /// i siste del av svinget. Da kommer flis, rist og fall samtidig med at øksa treffer stammen.
+    /// Finds the impact point in the swing animation: the moment the hand (and thus the axe head) moves fastest,
+    /// in the last part of the swing. That way chips, shake and fall coincide with the axe hitting the trunk.
     /// </summary>
     private float FindImpact(Skeleton3D skel, string anim)
     {
@@ -186,17 +186,17 @@ public partial class CharacterModel : PlayerVisual
         }
         _anim.Stop();
         float m = Mathf.Clamp(bestT / len, 0.2f, 0.8f);
-        GD.Print($"Slag: treffpunkt {m:0.00} av {len:0.00} s");
+        GD.Print($"Swing: impact at {m:0.00} of {len:0.00} s");
         return m;
     }
 
     /// <summary>
-    /// Hodet fra grunnfiguren: kroppsmeshen klippes til trekantene over kragen (i hvilestilling),
-    /// øyne og øyenbryn tas med som de er. Alt flyttes inn i antrekkets skjelett (samme rigg).
+    /// The head from the base character: the body mesh is clipped to the triangles above the collar (in rest pose),
+    /// eyes and eyebrows are included as is. Everything is moved into the outfit's skeleton (same rig).
     /// </summary>
     private static void AttachHead(Skeleton3D skel)
     {
-        const float NeckY = 1.5f;   // antrekkets krage/skuldre går til ~1.53–1.56 m
+        const float NeckY = 1.5f;   // the outfit's collar/shoulders reach ~1.53–1.56 m
         var baseScene = GD.Load<PackedScene>(BasePath).Instantiate<Node3D>();
         foreach (var n in baseScene.FindChildren("*", "MeshInstance3D", true, false))
         {
@@ -244,7 +244,7 @@ public partial class CharacterModel : PlayerVisual
         return mat;
     }
 
-    /// <summary>Kopi av en verktøymesh med tre/stål-materialene (til ikoner).</summary>
+    /// <summary>Copy of a tool mesh with the wood/steel materials (for icons).</summary>
     public static Mesh ToolMesh(Mesh mesh)
     {
         if (mesh is not ArrayMesh) return mesh;
@@ -261,9 +261,9 @@ public partial class CharacterModel : PlayerVisual
     {
         if (!ResourceLoader.Exists(path)) return new Node3D();
         var t = GD.Load<PackedScene>(path).Instantiate<Node3D>();
-        // Grep litt opp på skaftet
+        // Grip a little way up the handle
         t.Position = new Vector3(0, -0.06f, 0);
-        // Byt den flate Kenney-paletten mot tre/stål-shaderen (paletten brukes til å skille materialene)
+        // Swap the flat Kenney palette for the wood/steel shader (the palette is used to tell the materials apart)
         foreach (var n in t.FindChildren("*", "MeshInstance3D", true, false))
         {
             var mi = (MeshInstance3D)n;
@@ -300,7 +300,7 @@ public partial class CharacterModel : PlayerVisual
     public override void Animate(float speed, bool grounded, bool swimming, float swing, float dt)
     {
         _pickupTimer -= dt;
-        // Fotplassering bare når vi står/går på bakken
+        // Foot placement only when standing/walking on the ground
         float want = grounded && !swimming ? 1f : 0f;
         _ikWeight = Mathf.MoveToward(_ikWeight, want, dt * 5f);
         if (_feet != null)

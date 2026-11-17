@@ -3,39 +3,39 @@ using Godot;
 
 namespace Heimskringla.Core;
 
-/// <summary>En modellvariant: mesh (med Godots automatiske LOD) og grunnskala.</summary>
+/// <summary>A model variant: mesh (with Godot's automatic LOD) and base scale.</summary>
 public sealed class ModelVariant
 {
     public Mesh Mesh;
     public Aabb Aabb;
     public float BaseScale = 1f;
-    /// <summary>Skannede "skall": retningen forsiden vender (objektrom, xz), eller null. Settes ut fra skråningen.</summary>
+    /// <summary>Scanned "shells": the direction the front faces (object space, xz), or null. Set from the slope.</summary>
     public Vector3? FaceDir;
-    /// <summary>Nedsenking (andel av høyden) som overstyrer PropDef.Sink, eller negativ for standard.</summary>
+    /// <summary>Sinking (fraction of the height) that overrides PropDef.Sink, or negative for default.</summary>
     public float SinkFrac = -1f;
 
-    /// <summary>Snittet av alle normalene i meshen (per hjørne): hvor forsiden vender.</summary>
+    /// <summary>Average of all normals in the mesh (per vertex): where the front faces.</summary>
     public static Vector3 AverageNormal(Mesh mesh)
     {
         var sum = Vector3.Zero;
         for (int s = 0; s < mesh.GetSurfaceCount(); s++)
         {
             var arr = mesh.SurfaceGetArrays(s);
-            // Normalene (ikke vindingen, som Godot snur ved import)
+            // The normals (not the winding, which Godot flips on import)
             foreach (var nrm in arr[(int)Mesh.ArrayType.Normal].AsVector3Array()) sum += nrm;
         }
         return sum.LengthSquared() > 0f ? sum.Normalized() : Vector3.Back;
     }
 }
 
-/// <summary>Laster mesher fra importerte glTF/GLB-scener (res://assets/...).</summary>
+/// <summary>Loads meshes from imported glTF/GLB scenes (res://assets/...).</summary>
 public static class ModelLibrary
 {
     private static readonly Dictionary<string, Mesh> Cache = new();
 
     public static bool Exists(string path) => ResourceLoader.Exists(path);
 
-    /// <summary>Henter første mesh i en importert scene. Returnerer null hvis filen mangler.</summary>
+    /// <summary>Gets the first mesh in an imported scene. Returns null if the file is missing.</summary>
     public static Mesh LoadMesh(string path)
     {
         if (Cache.TryGetValue(path, out var cached)) return cached;
@@ -60,7 +60,7 @@ public static class ModelLibrary
         return mesh == null ? null : new ModelVariant { Mesh = mesh, Aabb = mesh.GetAabb(), BaseScale = baseScale };
     }
 
-    /// <summary>Laster en serie, f.eks. Pine_{0}.gltf for 1..5. Hopper over manglende filer.</summary>
+    /// <summary>Loads a series, e.g. Pine_{0}.gltf for 1..5. Skips missing files.</summary>
     public static List<ModelVariant> Series(string pattern, int from, int to, float baseScale = 1f)
     {
         var list = new List<ModelVariant>();
@@ -72,7 +72,7 @@ public static class ModelLibrary
         return list;
     }
 
-    /// <summary>Kopi av meshen med samme materiale på alle overflater.</summary>
+    /// <summary>Copy of the mesh with the same material on all surfaces.</summary>
     public static Mesh WithMaterialAll(Mesh mesh, Material mat)
     {
         var copy = (Mesh)mesh.Duplicate();
@@ -81,7 +81,7 @@ public static class ModelLibrary
         return copy;
     }
 
-    /// <summary>Kopi av meshen med nytt materiale på en gitt overflate.</summary>
+    /// <summary>Copy of the mesh with a new material on a given surface.</summary>
     public static Mesh WithMaterial(Mesh mesh, int surface, Material mat)
     {
         var copy = (Mesh)mesh.Duplicate();

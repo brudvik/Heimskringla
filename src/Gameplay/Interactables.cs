@@ -16,7 +16,7 @@ public interface IHittable
     string HitPrompt(ToolKind tool);
     void Hit(Player p, ToolKind tool);
     string TargetName { get; }
-    /// <summary>1 = urørt, 0 = ødelagt.</summary>
+    /// <summary>1 = intact, 0 = destroyed.</summary>
     float HealthFraction { get; }
 }
 
@@ -29,7 +29,7 @@ public static class Interactables
         _ => "hender",
     };
 
-    /// <summary>Lager en ekte node for et vegetasjonsobjekt som spilleren er nær.</summary>
+    /// <summary>Creates a real node for a vegetation object the player is near.</summary>
     public static Node3D CreateForProp(PropDef def, PropInstance inst, VegetationManager owner)
     {
         PhysicsBody3D body = def.Role switch
@@ -93,8 +93,8 @@ public partial class TreeNode : StaticBody3D, IHittable
     private float _hp = -1f;
 
     /// <summary>
-    /// Hvor mange "hogg" treet tåler: treslagets verdi skalert med størrelsen (et ungt tre går i
-    /// ett–to hogg, en gammel kjempe tar mange).
+    /// How many "chops" the tree withstands: the species' value scaled by size (a young tree falls in
+    /// one or two chops, an old giant takes many).
     /// </summary>
     private float MaxHp
     {
@@ -117,26 +117,26 @@ public partial class TreeNode : StaticBody3D, IHittable
             return;
         }
         if (_hp < 0f) _hp = MaxHp;
-        // Ferdighet: en nybegynner tar 1 per hogg, en dyktig hogger opptil 2.5, med litt variasjon
-        // (noen hogg sitter bedre enn andre)
+        // Skill: a beginner deals 1 per chop, a skilled woodcutter up to 2.5, with some variation
+        // (some chops land better than others)
         float skill = WorldState.Skill("Hogging");
         float dmg = (1f + skill / 66f) * (float)GD.RandRange(0.8, 1.2);
         _hp -= dmg;
         float before = Mathf.Floor(skill / 10f);
         float now = WorldState.Practice("Hogging", 0.8f);
         if (Mathf.Floor(now / 10f) > before) Hud.Instance?.Toast($"Hogging økte til {Mathf.FloorToInt(now)}");
-        // Treffpunkt på stammen, på siden mot spilleren
+        // Impact point on the trunk, on the side facing the player
         var toPlayer = p.GlobalPosition - GlobalPosition;
         toPlayer.Y = 0;
         toPlayer = toPlayer.LengthSquared() > 0.001f ? toPlayer.Normalized() : Vector3.Back;
         float r = Def.TrunkRadius * Inst.Scale;
         var hitPos = GlobalPosition + new Vector3(0, 1.0f, 0) + toPlayer * r;
-        Effects.Burst(GetParent(), hitPos, new Color(0.82f, 0.68f, 0.45f), 14, 0.15f);     // spon
+        Effects.Burst(GetParent(), hitPos, new Color(0.82f, 0.68f, 0.45f), 14, 0.15f);     // wood chips
         Effects.Burst(GetParent(), GlobalPosition + new Vector3(0, Def.Variant(Inst.Variant).Aabb.End.Y * Inst.Scale * 0.75f, 0),
-            new Color(0.35f, 0.55f, 0.2f), 10, 1.8f, 0.6f);                                   // løv som drysser
+            new Color(0.35f, 0.55f, 0.2f), 10, 1.8f, 0.6f);                                   // falling leaves
         p.AddShake(0.28f);
         AddNotch(toPlayer, r);
-        // Treet rister (mer jo nærmere det er å falle)
+        // The tree shakes (more the closer it is to falling)
         var mesh = GetNode<Node3D>("Mesh");
         float amp = 0.03f + 0.05f * (1f - HealthFraction);
         var tw = CreateTween();
@@ -151,7 +151,7 @@ public partial class TreeNode : StaticBody3D, IHittable
         dir = dir.LengthSquared() > 0.001f ? dir.Normalized() : Vector3.Forward;
         var fall = new FallingTree { Def = Def, Variant = Def.Variant(Inst.Variant), ScaleF = Inst.Scale, FallDir = dir, Watcher = p };
         GetParent().AddChild(fall);
-        // Start litt over stubben så de ikke kolliderer
+        // Start a little above the stump so they do not collide
         fall.GlobalTransform = GlobalTransform.Translated(new Vector3(0, 0.55f * Inst.Scale, 0));
         Hud.Instance?.Toast($"{Def.Name} faller!");
         QueueFree();
@@ -163,7 +163,7 @@ public partial class TreeNode : StaticBody3D, IHittable
     private MeshInstance3D _notch;
     private static StandardMaterial3D _notchMat;
 
-    /// <summary>Synlig hogg i stammen som vokser for hvert slag.</summary>
+    /// <summary>Visible notch in the trunk that grows with each hit.</summary>
     private void AddNotch(Vector3 toPlayer, float radius)
     {
         _notchMat ??= new StandardMaterial3D { AlbedoColor = new Color(0.86f, 0.72f, 0.5f), Roughness = 0.9f };
@@ -200,11 +200,11 @@ public partial class RockNode : StaticBody3D, IHittable
         _hp--;
         var top = GlobalPosition + new Vector3(0, Def.Variant(Inst.Variant).Aabb.End.Y * Inst.Scale * 0.7f, 0);
         Effects.Burst(GetParent(), top, new Color(0.55f, 0.54f, 0.5f), 16, 0.4f);
-        Effects.Burst(GetParent(), top, new Color(1f, 0.85f, 0.5f), 5, 0.2f, 0.3f);      // gnister
+        Effects.Burst(GetParent(), top, new Color(1f, 0.85f, 0.5f), 5, 0.2f, 0.3f);      // sparks
         p.AddShake(0.22f);
         int got = Def.ItemsOnHit + (_hp <= 0 ? Def.ItemsOnBreak : 0);
         Inventory.Add(Def.Item, got);
-        // Steinen krymper og skjelver for hvert slag
+        // The rock shrinks and shakes with each hit
         var mesh = GetNode<Node3D>("Mesh");
         var baseScale = Vector3.One * Inst.Scale * (0.55f + 0.45f * HealthFraction);
         var tw = CreateTween();
@@ -236,7 +236,7 @@ public partial class PropPickup : StaticBody3D, IInteractable
     }
 }
 
-/// <summary>Løs gjenstand med fysikk (tømmerstokk eller grein fra et felt tre).</summary>
+/// <summary>Loose item with physics (log or branch from a felled tree).</summary>
 public partial class LooseItem : RigidBody3D, IInteractable
 {
     public PropDef Def;
@@ -277,7 +277,7 @@ public partial class LooseItem : RigidBody3D, IInteractable
     }
 }
 
-/// <summary>Tre som faller etter felling, og blir til tømmerstokker.</summary>
+/// <summary>Tree that falls after felling and turns into logs.</summary>
 public partial class FallingTree : RigidBody3D
 {
     public PropDef Def;
@@ -312,10 +312,10 @@ public partial class FallingTree : RigidBody3D
         {
             _pushed = true;
             float h = TrunkLength;
-            // Et lite dytt; tyngdekraften gjør resten (treet akselererer mens det faller)
+            // A small push; gravity does the rest (the tree accelerates as it falls)
             ApplyImpulse(FallDir * Mass * 0.22f, GlobalBasis * new Vector3(0, h * 0.9f, 0));
         }
-        // Nedslag: når treet ligger nesten flatt
+        // Impact: when the tree is lying almost flat
         if (!_landed && _t > 0.5f && GlobalBasis.Y.Normalized().Y < 0.35f)
         {
             _landed = true;
@@ -362,7 +362,7 @@ public static class Effects
 {
     private static StandardMaterial3D _mat;
 
-    /// <summary>Liten partikkelsky (flis, steinsprut, løv).</summary>
+    /// <summary>Small particle cloud (wood chips, rock splinters, leaves).</summary>
     public static void Burst(Node parent, Vector3 pos, Color color, int amount, float spread = 0.6f, float speed = 1f)
     {
         _mat ??= new StandardMaterial3D { VertexColorUseAsAlbedo = true, ShadingMode = BaseMaterial3D.ShadingModeEnum.PerVertex };

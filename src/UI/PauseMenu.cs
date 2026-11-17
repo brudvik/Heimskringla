@@ -4,7 +4,7 @@ using Heimskringla.Core;
 
 namespace Heimskringla.UI;
 
-/// <summary>Esc-meny i spillet: Fortsett, Innstillinger, Lagre, Hovedmeny, Avslutt. Pauser spillet.</summary>
+/// <summary>In-game Esc menu: Continue, Settings, Save, Main menu, Quit. Pauses the game.</summary>
 public partial class PauseMenu : CanvasLayer
 {
     public Action OnSave, OnMainMenu;

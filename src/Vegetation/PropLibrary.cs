@@ -17,15 +17,15 @@ public sealed class PropDef
     public string Name;
     public PropRole Role;
     public ModelVariant[] Variants;
-    /// <summary>Indeks der snø/kulde-variantene starter (-1 = ingen). Velges i kalde soner.</summary>
+    /// <summary>Index where the snow/cold variants start (-1 = none). Chosen in cold zones.</summary>
     public int ColdStart = -1;
-    public float MaxDistance = 950f;   // vises ikke lenger unna enn dette
+    public float MaxDistance = 950f;   // not shown farther away than this
     public float MinScale = 0.85f, MaxScale = 1.2f;
-    public float Sink;                  // hvor mye den senkes i bakken (m, før skala)
+    public float Sink;                  // how far it is sunk into the ground (m, before scale)
     public bool CastShadow = true;
-    // Fysisk form (før skalering). Trær: stammeradius. Høyde hentes fra modellen.
+    // Physical shape (before scaling). Trees: trunk radius. Height is taken from the model.
     public float TrunkRadius = 0.3f;
-    // Høsting
+    // Harvesting
     public ToolKind Tool = ToolKind.Hands;
     public int Hp = 1;
     public string Item;
@@ -38,8 +38,8 @@ public sealed class PropDef
 }
 
 /// <summary>
-/// Register over alle props. Bruker CC0-modeller fra res://assets når de finnes, ellers
-/// kodegenererte low-poly-mesher (så spillet alltid virker).
+/// Registry of all props. Uses CC0 models from res://assets when they exist, otherwise
+/// procedurally generated low-poly meshes (so the game always works).
 /// </summary>
 public static class PropLibrary
 {
@@ -61,9 +61,9 @@ public static class PropLibrary
 
         var proc = new Procedural(Game.PropMaterial, BarkMaterial());
 
-        // ---------- Trær
-        // Gran: egen kodegenerert norsk gran med barnålkort (SpruceBuilder); lavpoly-granene fra
-        // naturpakka hadde flate, kantete greinplater som så ut som papp på nært hold.
+        // ---------- Trees
+        // Spruce: our own procedurally generated Norway spruce with needle cards (SpruceBuilder); the low-poly spruces from
+        // the nature pack had flat, angular branch plates that looked like cardboard up close.
         var spruce = OS.GetEnvironment("HK_OLDSPRUCE") == "1" ? ModelLibrary.Series(Nature + "Pine_{0}.gltf", 1, 3) : SpruceBuilder.Variants();
         Def(PropKind.Spruce, "Gran", PropRole.Tree, spruce, proc.Spruce, d =>
         {
@@ -76,8 +76,8 @@ public static class PropLibrary
             d.MinScale = 0.85f; d.MaxScale = 1.2f; d.Sink = 0.2f; d.TrunkRadius = 0.3f;
             d.Tool = ToolKind.Axe; d.Hp = 6; d.LogsOnFell = 4; d.BranchesOnFell = 1;
         });
-        // Bjørk og eik: kodegenererte lauvtrær med lauvkort (LeafTreeBuilder); de runde
-        // "ballong"-kronene fra naturpakka brukes bare med HK_OLDTREES=1
+        // Birch and oak: procedurally generated deciduous trees with leaf cards (LeafTreeBuilder); the round
+        // "balloon" crowns from the nature pack are only used with HK_OLDTREES=1
         bool oldTrees = OS.GetEnvironment("HK_OLDTREES") == "1";
         var birchBark = BirchMaterial();
         var birch = oldTrees ? OldBirch(birchBark) : LeafTreeBuilder.Variants(LeafTreeBuilder.Species.Birch, birchBark);
@@ -100,13 +100,13 @@ public static class PropLibrary
             d.Tool = ToolKind.Axe; d.Hp = 3; d.LogsOnFell = 2; d.BranchesOnFell = 3;
         });
 
-        // ---------- Småvegetasjon (pynt)
+        // ---------- Small vegetation (decoration)
         var bush = ModelLibrary.Series(Nature + "Bush_Common.gltf", 0, 0, 0.8f);
-        // Bush_Common bruker høstrødt løv; gi den det grønne løvmaterialet fra vanlige trær
+        // Bush_Common uses autumn-red foliage; give it the green foliage material from regular trees
         var greenLeaves = ModelLibrary.LoadMesh(Nature + "CommonTree_1.gltf")?.SurfaceGetMaterial(1);
         if (greenLeaves != null)
             foreach (var b in bush) b.Mesh = ModelLibrary.WithMaterial(b.Mesh, 0, greenLeaves);
-        // Variasjon: busk med blomster (rosa/hvite, vår/sommer-preg) og en lav, bred variant
+        // Variation: bush with flowers (pink/white, spring/summer feel) and a low, wide variant
         var flowerBush = ModelLibrary.Variant(Nature + "Bush_Common_Flowers.gltf", 0.8f);
         if (flowerBush != null) bush.Add(flowerBush);
         if (bush.Count > 0)
@@ -134,13 +134,13 @@ public static class PropLibrary
             d.MaxDistance = 100f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Sopp"; d.CastShadow = false;
         });
 
-        // ---------- Stein
+        // ---------- Rock
         var rockMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/rock_formation.gdshader") };
         var boulder = ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 0.75f);
         foreach (var v in boulder) v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         Def(PropKind.Boulder, "Steinblokk", PropRole.Rock, boulder, proc.Boulder, d =>
         {
-            // Godt nedsunket (steinblokker ligger delvis begravd, ikke oppå bakken)
+            // Sunk well in (boulders are partly buried, not sitting on top of the ground)
             d.MaxDistance = 550f; d.MinScale = 0.6f; d.MaxScale = 1.6f; d.Sink = 0.55f;
             d.Tool = ToolKind.Pickaxe; d.Hp = 6; d.Item = "Stein"; d.ItemsOnHit = 1; d.ItemsOnBreak = 3;
         });
@@ -151,24 +151,24 @@ public static class PropLibrary
             d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Stein"; d.CastShadow = false;
         });
 
-        // ---------- Klippeformasjoner: Kenney-former + store MegaKit-steiner, felles steinshader
-        // Fjellsidene har egne steinlag/klipper i terrenget nå; Kenney-søylene så ut som grå prismer
-        // oppå fjellet. Bare avrundede steinutspring, godt nedsenket.
+        // ---------- Cliff formations: Kenney shapes + large MegaKit rocks, shared rock shader
+        // Mountainsides now have their own rock layers/cliffs in the terrain; the Kenney pillars looked like gray prisms
+        // on top of the mountain. Only rounded rock outcrops, sunk well in.
         var cliffs = new List<ModelVariant>();
         cliffs.AddRange(ModelLibrary.Series(Nature + "Rock_Medium_{0}.gltf", 1, 3, 3.2f));
-        // Skannede klipper fra Poly Haven (scripts/fetch_polyhaven_models.py): gir ekte bergformer
-        // med kanter og overheng som terrengnettet ikke kan lage. Godot lager LOD-er ved import.
+        // Scanned cliffs from Poly Haven (scripts/fetch_polyhaven_models.py): give real rock shapes
+        // with edges and overhangs that the terrain mesh cannot make. Godot generates LODs on import.
         const string PH = "res://assets/polyhaven/";
-        if (OS.GetEnvironment("HK_NOSCANS") != "1")   // testbryter
+        if (OS.GetEnvironment("HK_NOSCANS") != "1")   // test switch
         foreach (var (id, scale) in new[] { ("rock_face_01", 6f), ("rock_face_02", 9f), ("mountainside", 3f), ("boulder_01", 6f) })
         {
             var v = ModelLibrary.Variant(PH + $"{id}/{id}.gltf", scale);
             if (v == null) continue;
             var face = ModelVariant.AverageNormal(v.Mesh);
-            bool shell = new Vector2(face.X, face.Z).Length() > 0.4f;   // åpent skall (bare forsiden skannet)
+            bool shell = new Vector2(face.X, face.Z).Length() > 0.4f;   // open shell (only the front side scanned)
             v.FaceDir = shell ? new Vector3(face.X, 0, face.Z).Normalized() : null;
             v.SinkFrac = shell ? 0.25f : 0.35f;
-            GD.Print($"Klippe {id}: forside {face}, skall={shell}");
+            GD.Print($"Cliff {id}: front {face}, shell={shell}");
             cliffs.Add(v);
             cliffs.Add(new ModelVariant { Mesh = v.Mesh, BaseScale = scale * 1.4f, FaceDir = v.FaceDir, SinkFrac = v.SinkFrac });
         }
@@ -179,37 +179,37 @@ public static class PropLibrary
             d.MaxDistance = 1000f; d.MinScale = 0.8f; d.MaxScale = 1.6f; d.Sink = 0.9f;
         });
 
-        // ---------- Drivved på strendene (gir tømmer)
-        // Bruker samme barkteksturerte stokk som tømmerstokkene, bare større og bleket
+        // ---------- Driftwood on the beaches (gives timber)
+        // Uses the same bark-textured log as the timber logs, just larger and bleached
         Def(PropKind.Driftwood, "Drivved", PropRole.Pickup, null, proc.Log, d =>
         {
             d.MaxDistance = 150f; d.MinScale = 1.2f; d.MaxScale = 2.0f; d.Item = "Tømmer"; d.Sink = 0.1f;
         });
 
-        // ---------- Tre-ressurser (alltid kodegenerert, med barktekstur)
+        // ---------- Wood resources (always procedurally generated, with bark texture)
         Def(PropKind.Branch, "Grein", PropRole.Pickup, null, proc.Branch, d =>
         {
             d.MaxDistance = 120f; d.MinScale = 0.8f; d.MaxScale = 1.3f; d.Item = "Grein"; d.CastShadow = false;
         });
         Def(PropKind.Log, "Tømmerstokk", PropRole.Pickup, null, proc.Log, d => { d.Item = "Tømmer"; });
 
-        // ---------- Snødekte varianter (Ultimate Nature Pack, lavpoly) for kalde soner
-        // Gran/furu/bjørk bruker de vanlige modellene også i kalde soner; snøen legges på i
-        // foliage-shaderen (lavpoly-snøtrærne var kantete og passet ikke med resten).
+        // ---------- Snow-covered variants (Ultimate Nature Pack, low-poly) for cold zones
+        // Spruce/pine/birch use the regular models in cold zones too; the snow is applied in
+        // the foliage shader (the low-poly snow trees were angular and did not fit with the rest).
         AddCold(PropKind.DeadTree, ModelLibrary.Series(LowPoly + "BirchTree_Dead_{0}.glb", 1, 5, 1.5f));
         
         var snowRocks = ModelLibrary.Series(LowPoly + "Rock_Snow_{0}.glb", 1, 7, 2.6f);
         foreach (var v in snowRocks)
         {
-            // Hele steinen får bergshaderen; snøen legges på i shaderen (kalde soner har alltid snø)
+            // The whole rock gets the rock shader; the snow is applied in the shader (cold zones always have snow)
             v.Mesh = ModelLibrary.WithMaterialAll(v.Mesh, rockMat);
         }
         AddCold(PropKind.Boulder, snowRocks);
         StumpMesh = ModelLibrary.LoadMesh(LowPoly + "TreeStump.glb");
         StumpSnowMesh = BrightenSnow(ModelLibrary.LoadMesh(LowPoly + "TreeStump_Snow.glb")) ?? StumpMesh;
 
-        // ---------- Vind (og årstidsfarger) på alt som gror
-        //                                  bend  flutter  løvtre
+        // ---------- Wind (and seasonal colors) on everything that grows
+        //                                  bend  flutter  deciduous
         ApplyWind(PropKind.Spruce,          0.55f, 0.35f, false);
 
         ApplyWind(PropKind.Pine,            0.65f, 0.45f, false);
@@ -219,7 +219,7 @@ public static class PropLibrary
         ApplyWind(PropKind.Bush,            22f,   1.2f,  true);
         ApplyWind(PropKind.Fern,            45f,   1.6f,  true);
         ApplyWind(PropKind.Flower,          60f,   1.8f,  false);
-        // Bar- og lauvkort er flate: ton ut kort som ses fra kanten (foliage.gdshader: card_fade)
+        // Needle and leaf cards are flat: fade out cards seen edge-on (foliage.gdshader: card_fade)
         foreach (var kind in new[] { PropKind.Spruce, PropKind.Birch, PropKind.Oak })
             foreach (var v in Defs[(int)kind].Variants)
                 for (int s = 0; s < v.Mesh.GetSurfaceCount(); s++)
@@ -231,7 +231,7 @@ public static class PropLibrary
         GrassMesh = Procedural.BuildGrassMesh();
     }
 
-    /// <summary>Legger til snø/kulde-varianter bak de vanlige.</summary>
+    /// <summary>Adds snow/cold variants after the regular ones.</summary>
     private static void AddCold(PropKind kind, List<ModelVariant> cold)
     {
         var d = Defs[(int)kind];
@@ -245,7 +245,7 @@ public static class PropLibrary
 
     private static readonly Dictionary<Mesh, Mesh> SnowFixed = new();
 
-    /// <summary>Lysner materialet "Snow" i lavpoly-modellene (er mørkt lilla-grått i originalen).</summary>
+    /// <summary>Brightens the "Snow" material in the low-poly models (it is a dark purple-gray in the original).</summary>
     public static Mesh BrightenSnow(Mesh mesh)
     {
         if (mesh == null) return null;
@@ -278,8 +278,8 @@ public static class PropLibrary
     private static readonly Dictionary<(Material, PropKind), Material> WindMats = new();
 
     /// <summary>
-    /// Bytter materialene på alle varianter av en plante til vindshaderen (foliage.gdshader).
-    /// Alle overflater på samme modell får samme bend/flutter, så løv og stamme henger sammen.
+    /// Swaps the materials on all variants of a plant to the wind shader (foliage.gdshader).
+    /// All surfaces on the same model get the same bend/flutter, so foliage and trunk stay together.
     /// </summary>
     private static void ApplyWind(PropKind kind, float bend, float flutter, bool deciduous)
     {
@@ -308,7 +308,7 @@ public static class PropLibrary
     {
         if (src is ShaderMaterial sm)
         {
-            // Egne shadere (bjørkebark) har vind innebygd; gi dem riktige parametre
+            // Custom shaders (birch bark) have built-in wind; give them the right parameters
             var c = (ShaderMaterial)sm.Duplicate();
             c.SetShaderParameter("bend", bend);
             c.SetShaderParameter("flutter", flutter);
@@ -316,7 +316,7 @@ public static class PropLibrary
         }
         if (src is not BaseMaterial3D bm) return src;
         string n = bm.ResourceName ?? "";
-        // Lavpoly-modellene (Ultimate Nature Pack) kaller stammen "Wood", og bjørkene "White"/"Black"
+        // The low-poly models (Ultimate Nature Pack) call the trunk "Wood", and the birches "White"/"Black"
         bool barkName = n.Contains("Bark") || n.Contains("Wood") || n.Contains("Trunk") || n == "White" || n == "Black";
         bool leafy = !(barkName || n.Contains("Snow"));
         var m = new ShaderMaterial { Shader = FoliageShader ??= GD.Load<Shader>("res://shaders/foliage.gdshader") };
@@ -398,7 +398,7 @@ public static class PropLibrary
         return mat;
     }
 
-    /// <summary>Kodegenererte low-poly-mesher (reserve når assets mangler, og for greiner/stokker).</summary>
+    /// <summary>Procedurally generated low-poly meshes (fallback when assets are missing, and for branches/logs).</summary>
     private sealed class Procedural
     {
         private readonly Material _mat, _bark;
@@ -494,8 +494,8 @@ public static class PropLibrary
         }
 
         /// <summary>
-        /// Gresstust: mange tynne, buede strå (4 ledd per strå, smalner mot tuppen).
-        /// UV.y = 0 i tuppen, 1 ved roten; UV.x = 0..1 på tvers. COLOR.r = tilfeldig per strå.
+        /// Grass tuft: many thin, curved blades (4 segments per blade, tapering toward the tip).
+        /// UV.y = 0 at the tip, 1 at the root; UV.x = 0..1 across. COLOR.r = random per blade.
         /// </summary>
         public static ArrayMesh BuildGrassMesh()
         {
@@ -513,7 +513,7 @@ public static class PropLibrary
                 var root = new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
                 float face = (float)rng.NextDouble() * Mathf.Tau;
                 var side = new Vector3(Mathf.Cos(face), 0, Mathf.Sin(face));
-                // Strået bøyer utover fra tustens midte (litt tilfeldig)
+                // The blade bends outward from the tuft's center (slightly random)
                 var outward = (root.LengthSquared() > 1e-4f ? root.Normalized() : new Vector3(1, 0, 0)).Rotated(Vector3.Up, ((float)rng.NextDouble() - 0.5f) * 1.2f);
                 float h = 0.28f + (float)rng.NextDouble() * 0.42f;
                 float bend = 0.08f + (float)rng.NextDouble() * 0.22f;
@@ -525,7 +525,7 @@ public static class PropLibrary
                     float t = (float)k / Seg;
                     var c = root + outward * (bend * t * t * h * 2f) + new Vector3(0, h * t * (1f - bend * t * 0.35f), 0);
                     float hw = w * (1f - t * 0.92f);
-                    // Normalen peker mest opp (gresset lyses som et teppe), litt mot strået
+                    // The normal points mostly up (the grass is lit like a carpet), slightly toward the blade
                     var nn = (Vector3.Up * 0.8f + outward * 0.2f).Normalized();
                     if (k < Seg)
                     {

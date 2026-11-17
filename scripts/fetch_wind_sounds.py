@@ -1,21 +1,21 @@
-"""Laster ned CC0-vindopptak fra Freesound og lager sømløse lydløkker til assets/audio/wind/.
+"""Downloads CC0 wind recordings from Freesound and makes seamless sound loops for assets/audio/wind/.
 
-Bruk:
-    py -3.12 scripts/fetch_wind_sounds.py [nedlastingsmappe] [--analyze]
+Usage:
+    py -3.12 scripts/fetch_wind_sounds.py [download-dir] [--analyze]
 
-Krever numpy og soundfile (pip install numpy soundfile). Standard nedlastingsmappe er
-D:/3dmodels/zip/freesound. Med --analyze skrives bare statistikk for kandidatene (lengde, nivå,
-klang og antall transienter som knekk, fugler og biler), uten at løkkene lages.
+Requires numpy and soundfile (pip install numpy soundfile). The default download dir is
+D:/3dmodels/zip/freesound. With --analyze, only statistics for the candidates are printed (length, level,
+timbre and number of transients such as snapping twigs, birds and cars), without making the loops.
 
-Freesound krever innlogging for originalfilene, men forhåndsvisningene (HQ mp3, ~128 kbps) er
-åpne. Det holder fint for bakgrunnsvind, som uansett er støy. Bare opptak med CC0-lisens brukes,
-og lisensen sjekkes på lydsiden før nedlasting.
+Freesound requires login for the original files, but the previews (HQ mp3, ~128 kbps) are
+open. That is fine for background wind, which is noise anyway. Only CC0-licensed recordings are used,
+and the license is checked on the sound's page before downloading.
 
-Hver løkke lages slik:
-  1. Velger det roligste utsnittet av LEN sekunder (færrest transienter og jevnest nivå).
-  2. Høypass ved 35 Hz (rumling) og svak lavpass ved 6.5 kHz (skarpt sus).
-  3. Sømløs løkke: de siste XF sekundene krysstones inn over starten (likeeffekt).
-  4. Normaliseres til samme RMS, så spillet kan blande lagene med kjente nivåer.
+Each loop is made as follows:
+  1. Picks the calmest LEN-second window (fewest transients and most even level).
+  2. High-pass at 35 Hz (rumble) and a gentle low-pass at 6.5 kHz (harsh hiss).
+  3. Seamless loop: the last XF seconds are crossfaded over the start (equal power).
+  4. Normalized to the same RMS, so the game can mix the layers at known levels.
 """
 import json
 import os
@@ -30,16 +30,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "audio", "wind")
 UA = {"User-Agent": "Mozilla/5.0 (heimskringla-asset-script)"}
 RATE = 44100
-LEN = 50.0      # sekunder per løkke
-XF = 4.0        # krysstoning i skjøten
+LEN = 50.0      # seconds per loop
+XF = 4.0        # crossfade at the seam
 TARGET_DB = -20.0
 
-# (freesound-id, filnavn i spillet, beskrivelse)
+# (freesound id, file name in the game, description)
 SOUNDS = [
-    (139337, "wind_grass", "lett vind i gress, trær i bakgrunnen (felix.blume)"),
-    (259968, "wind_forest", "rolig vind i trær på avstand (lwdickens)"),
-    (819351, "wind_strong", "kraftigere vind i skog (JW_Audio)"),
-    (104316, "wind_open", "vindkast høyt til fjells (Proxima4)"),
+    (139337, "wind_grass", "light wind in grass, trees in the background (felix.blume)"),
+    (259968, "wind_forest", "calm wind in distant trees (lwdickens)"),
+    (819351, "wind_strong", "stronger wind in forest (JW_Audio)"),
+    (104316, "wind_open", "gusts high in the mountains (Proxima4)"),
 ]
 CANDIDATES = [139337, 819351, 110919, 321412, 104316, 259968, 376534, 450372]
 
@@ -52,7 +52,7 @@ def get(url):
 def info(sid):
     html = get(f"https://freesound.org/s/{sid}/").decode("utf-8", "replace")
     if "Creative Commons 0" not in html:
-        raise RuntimeError(f"{sid}: ikke CC0, hoppes over")
+        raise RuntimeError(f"{sid}: not CC0, skipping")
     preview = re.search(r"https://cdn\.freesound\.org/previews/[0-9]+/[0-9_]+-hq\.mp3", html).group(0)
     title = re.search(r'og:audio:title" content="([^"]+)', html).group(1)
     artist = re.search(r'og:audio:artist" content="([^"]+)', html).group(1)
@@ -66,7 +66,7 @@ def download(sid, folder):
         with open(meta_path, encoding="utf-8") as f:
             return path, json.load(f)
     preview, title, artist = info(sid)
-    print(f"  laster ned {sid}: {title} ({artist})")
+    print(f"  downloading {sid}: {title} ({artist})")
     data = get(preview)
     with open(path, "wb") as f:
         f.write(data)
@@ -81,15 +81,15 @@ def load(path):
     if x.shape[1] == 1:
         x = np.repeat(x, 2, axis=1)
     x = x[:, :2]
-    if sr != RATE:  # lineær omsampling holder for støy
+    if sr != RATE:  # linear resampling is good enough for noise
         t = np.arange(0, len(x) / sr, 1 / RATE)
         x = np.stack([np.interp(t, np.arange(len(x)) / sr, x[:, c]) for c in range(2)], axis=1).astype(np.float32)
     return x
 
 
 def highpass(x, fc=35.0, lp=6500.0):
-    # Myk høypass i frekvensdomenet (2. ordens) og en svak lavpass (1. ordens) som tar bort
-    # det skarpe suset i diskanten, så vinden blir behageligere å høre på over tid
+    # Soft high-pass in the frequency domain (2nd order) and a gentle low-pass (1st order) that removes
+    # the harsh hiss in the treble, so the wind is more pleasant to listen to over time
     spec = np.fft.rfft(x, axis=0)
     f = np.fft.rfftfreq(len(x), 1 / RATE)[:, None]
     spec *= (f / fc) ** 2 / (1 + (f / fc) ** 2)
@@ -104,13 +104,13 @@ def frame_stats(x, win=0.05):
     fr = m[: k * n].reshape(k, n)
     rms = np.sqrt((fr ** 2).mean(axis=1) + 1e-12)
     peak = np.abs(fr).max(axis=1)
-    # Høyfrekvent innhold (fugler, knepp): differanse-energi i forhold til total
+    # High-frequency content (birds, clicks): difference energy relative to total
     hf = np.sqrt((np.diff(fr, axis=1) ** 2).mean(axis=1) + 1e-12) / rms
     return rms, peak, hf
 
 
 def transients(rms, peak):
-    # Rammer der toppen stikker langt over nivået rundt (glidende median over ~2 s)
+    # Frames where the peak sticks far above the surrounding level (moving median over ~2 s)
     k = 40
     pad = np.pad(rms, k, mode="edge")
     local = np.array([np.median(pad[i:i + 2 * k]) for i in range(len(rms))])
@@ -126,7 +126,7 @@ def analyze(path, meta):
     freqs = np.fft.rfftfreq(min(len(x), RATE * 20), 1 / RATE)
     centroid = (spec * freqs).sum() / spec.sum()
     print(f"{meta['id']:>7}  {len(x) / RATE:6.1f}s  {db:6.1f} dBFS  centroid {centroid:6.0f} Hz  "
-          f"transienter {tr.mean() * 100:4.1f}%  nivåvariasjon {np.std(20 * np.log10(rms)):4.1f} dB  {meta['title'][:60]}")
+          f"transients {tr.mean() * 100:4.1f}%  level variation {np.std(20 * np.log10(rms)):4.1f} dB  {meta['title'][:60]}")
 
 
 def best_window(x):
@@ -155,7 +155,7 @@ def make_loop(x):
     body = seg[: len(seg) - xf].copy()
     tail = seg[len(seg) - xf:]
     t = np.linspace(0, 1, xf, dtype=np.float32)[:, None]
-    # Halen tones ut over starten, starten tones inn: slutten av body går rett over i halen
+    # The tail fades out over the start while the start fades in: the end of body runs straight into the tail
     body[:xf] = body[:xf] * np.sin(t * np.pi / 2) + tail * np.cos(t * np.pi / 2)
     rms = np.sqrt((body ** 2).mean())
     body *= 10 ** (TARGET_DB / 20) / max(rms, 1e-6)
@@ -185,7 +185,7 @@ def main():
         path, meta = download(sid, folder)
         loop = make_loop(load(path))
         target = os.path.join(OUT, f"{name}.ogg")
-        # libsndfile krasjer (stack overflow) på store Vorbis-skrivinger i én bit: skriv i blokker
+        # libsndfile crashes (stack overflow) on large Vorbis writes in one go: write in blocks
         with sf.SoundFile(target, "w", RATE, 2, format="OGG", subtype="VORBIS") as out:
             for i in range(0, len(loop), 8192):
                 out.write(np.ascontiguousarray(loop[i:i + 8192]))
@@ -198,12 +198,12 @@ def main():
     with open(lic, "a", encoding="utf-8", newline="\n") as f:
         if "assets/audio/wind" not in text:
             f.write("\n## assets/audio/wind/ - Freesound (CC0 1.0)\n\n")
-            f.write("Vindopptak fra https://freesound.org, lisens CC0 1.0 (ingen kreditering påkrevd), "
-                    "klippet til løkker av scripts/fetch_wind_sounds.py:\n")
+            f.write("Wind recordings from https://freesound.org, license CC0 1.0 (no attribution required), "
+                    "cut into loops by scripts/fetch_wind_sounds.py:\n")
         for sid, name, meta in credits:
             if f"freesound.org/s/{sid}" not in text:
-                f.write(f"- {name}.ogg - \"{meta['title']}\" av {meta['artist']} - https://freesound.org/s/{sid}/\n")
-    print("Ferdig:", OUT)
+                f.write(f"- {name}.ogg - \"{meta['title']}\" by {meta['artist']} - https://freesound.org/s/{sid}/\n")
+    print("Done:", OUT)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Lister klasser som matcher et filter, med egenskaper (kjør: godot --headless --script scripts/godot/list_classes.gd -- <filter>)
+# Lists classes matching a filter, with their properties (run: godot --headless --script scripts/godot/list_classes.gd -- <filter>)
 extends SceneTree
 
 func _init():

@@ -12,15 +12,15 @@ using Heimskringla.World;
 namespace Heimskringla;
 
 /// <summary>
-/// Oppstart: genererer verden i bakgrunnen, strømmer inn terreng rundt startpunktet,
-/// og plasserer spilleren når bakken er klar.
+/// Startup: generates the world in the background, streams in terrain around the spawn point,
+/// and places the player when the ground is ready.
 /// </summary>
 public partial class Main : Node3D
 {
     public static int Seed = Settings.DefaultSeed;
     private static bool _loadOnStart;
     private static bool _argsParsed;
-    /// <summary>Menyen er passert (F9/F10 laster rett inn igjen); false = vis hovedmenyen.</summary>
+    /// <summary>The menu has been passed (F9/F10 reload straight in); false = show the main menu.</summary>
     private static bool _menuDone;
     private static bool _introPlayed;
     private static bool _seedFromArgs;
@@ -28,7 +28,7 @@ public partial class Main : Node3D
     private enum State { Menu, Generating, MenuFly, Streaming, Playing }
     private State _state = State.Menu;
     private PauseMenu _pause;
-    // Hovedmenyen: verdenen genereres bak menyen, og et filmkamera flyr over den
+    // Main menu: the world is generated behind the menu, and a cinematic camera flies over it
     private MainMenu _menu;
     private bool _menuFly;
     private Camera3D _cineCam;
@@ -70,7 +70,7 @@ public partial class Main : Node3D
         {
             Game.AutoTest = true;
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
-            // Ikke fang musa mens testen går (brukeren jobber i andre vinduer)
+            // Don't capture the mouse while the test runs (the user is working in other windows)
             Input.MouseMode = Input.MouseModeEnum.Visible;
         }
         _hud = new Hud();
@@ -84,8 +84,8 @@ public partial class Main : Node3D
             BeginGeneration();
             return;
         }
-        // Hovedmeny (med intro første gang). Verdenen for valgt seed genereres med en gang, så
-        // menyen kan vise den levende verdenen, og "Nytt spill"/"Fortsett" starter uten ny generering.
+        // Main menu (with intro the first time). The world for the chosen seed is generated right away, so
+        // the menu can show the live world, and "New game"/"Continue" start without regenerating.
         if (!_seedFromArgs) Seed = Settings.LastSeed;
         _hud.Visible = false;
         _menu = new MainMenu { SkipIntro = _introPlayed, OnStart = OnMenuStart };
@@ -101,7 +101,7 @@ public partial class Main : Node3D
         _menu = null;
         if (seed != Seed || (_genTask != null && _genTask.IsFaulted))
         {
-            // Annen verden enn den som er generert bak menyen: last inn på nytt med den
+            // A different world than the one generated behind the menu: reload with it
             Seed = seed;
             _loadOnStart = load;
             GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
@@ -110,11 +110,11 @@ public partial class Main : Node3D
         _hud.Visible = true;
         _menuFly = false;
         _loadOnStart = load;
-        if (_state == State.Generating) return;   // Setup tar vanlig vei når genereringen er ferdig
+        if (_state == State.Generating) return;   // Setup takes the normal path when generation finishes
         StartFromMenu(load);
     }
 
-    /// <summary>Verdenen er allerede generert og vist bak menyen: plasser spilleren og start.</summary>
+    /// <summary>The world is already generated and shown behind the menu: place the player and start.</summary>
     private void StartFromMenu(bool load)
     {
         _loadOnStart = false;
@@ -130,7 +130,7 @@ public partial class Main : Node3D
                 _loadedTime = loaded.Value.time;
                 _dayNight.Day = Mathf.FloorToInt(loaded.Value.time);
                 _dayNight.TimeOfDay = loaded.Value.time - _dayNight.Day;
-                _vegetation.Rebuild();   // felte trær osv. fra lagringen
+                _vegetation.Rebuild();   // felled trees etc. from the save
             }
         }
         _weather.Locked = false;
@@ -146,8 +146,8 @@ public partial class Main : Node3D
     }
 
     /// <summary>
-    /// Filmkamera over verdenen bak menyen: langsom flytur mot kveldssola, høyt over terrenget, med
-    /// horisonten i bildet og en svak sving fram og tilbake.
+    /// Cinematic camera over the world behind the menu: slow flight towards the evening sun, high above the terrain, with
+    /// the horizon in frame and a gentle sway back and forth.
     /// </summary>
     private void UpdateCineCamera(float dt)
     {
@@ -156,7 +156,7 @@ public partial class Main : Node3D
         var toSun = _dayNight.SunDirection(_weather?.YearT ?? 0.15f, _dayNight.TimeOfDay);
         var fwd0 = new Vector3(toSun.X, 0, toSun.Z);
         fwd0 = fwd0.LengthSquared() > 1e-4f ? fwd0.Normalized() : Vector3.Forward;
-        // Litt til siden for sola (ikke rett inn i den), og en langsom sving
+        // Slightly to the side of the sun (not straight into it), and a slow turn
         var fwd = fwd0.Rotated(Vector3.Up, 1.2f + Mathf.Sin(_cineT * 0.035f) * 0.2f);
         var side = fwd.Cross(Vector3.Up);
         var pos = _cineCenter - fwd0 * 160f + fwd0 * (_cineT * 5.5f) + side * Mathf.Sin(_cineT * 0.02f) * 60f;
@@ -185,7 +185,7 @@ public partial class Main : Node3D
         _genTask = Task.Run(() => WorldGenerator.Generate(seed, s => _progress = s));
     }
 
-    /// <summary>Lagrer spillet (bål, posisjon, tid, inventar, ferdigheter).</summary>
+    /// <summary>Saves the game (campfires, position, time, inventory, skills).</summary>
     private void SaveGame()
     {
         if (_player == null) return;
@@ -228,7 +228,7 @@ public partial class Main : Node3D
                 }
                 if (_autoTestDir != null && !_loadShot && _sw.Elapsed.TotalSeconds > 0.8)
                 {
-                    _loadShot = true;   // bilde av lasteskjermen (logo)
+                    _loadShot = true;   // screenshot of the loading screen (logo)
                     GetViewport().GetTexture().GetImage().SavePng(System.IO.Path.Combine(_autoTestDir, "loading.png"));
                 }
                 if (_genTask.IsCompleted) Setup(_genTask.Result);
@@ -255,7 +255,7 @@ public partial class Main : Node3D
     private void Setup(WorldGenerator world)
     {
         _genSeconds = _sw.Elapsed.TotalSeconds;
-        GD.Print($"Verden generert på {_genSeconds:F1} s (seed {Seed}, elveceller {world.RiverCells}, innsjøceller {world.LakeCells})\n{world.Report}");
+        GD.Print($"World generated in {_genSeconds:F1} s (seed {Seed}, river cells {world.RiverCells}, lake cells {world.LakeCells})\n{world.Report}");
         Game.World = world;
         WorldTexture.Publish(world);
         Game.Jobs = new JobQueue(Math.Max(2, System.Environment.ProcessorCount - 2));
@@ -266,7 +266,7 @@ public partial class Main : Node3D
         Game.WaterMaterial = new ShaderMaterial { Shader = waterShader };
         Game.WaterMaterial.SetShaderParameter("wave_strength", 0.5f);
         Game.WaterMaterial.SetShaderParameter("shallow_color", new Color(0.18f, 0.40f, 0.37f));
-        // Dypt fjordvann: mørkt skifergrønt (norske fjorder), ikke tropisk blått
+        // Deep fjord water: dark slate green (Norwegian fjords), not tropical blue
         Game.WaterMaterial.SetShaderParameter("deep_color", new Color(0.02f, 0.075f, 0.1f));
         Game.PropMaterial = new StandardMaterial3D
         {
@@ -304,7 +304,7 @@ public partial class Main : Node3D
         _vegetation = new VegetationManager { Name = "Vegetation" };
         AddChild(_vegetation);
         _grass = new GrassManager { Name = "Grass" };
-        if (OS.GetEnvironment("HK_NOGRASS") != "1") AddChild(_grass);   // testbryter
+        if (OS.GetEnvironment("HK_NOGRASS") != "1") AddChild(_grass);   // test switch
 
         var oceanMat = new ShaderMaterial { Shader = waterShader };
         oceanMat.SetShaderParameter("is_ocean", true);
@@ -317,7 +317,7 @@ public partial class Main : Node3D
 
         if (_menuFly)
         {
-            // Bak menyen: gylden kveldssol, lette skyer, filmkamera over startområdet
+            // Behind the menu: golden evening sun, light clouds, cinematic camera over the spawn area
             _weather.Locked = true;
             _weather.Set(WeatherKind.Cloudy, true);
             _dayNight.TimeOfDay = 0.725f;
@@ -330,7 +330,7 @@ public partial class Main : Node3D
             return;
         }
 
-        // Midlertidig kamera mens terrenget lastes
+        // Temporary camera while the terrain loads
         _loadingCamera = new Camera3D { Far = 12000f, Current = true };
         AddChild(_loadingCamera);
         _loadingCamera.LookAtFromPosition(_spawn + new Vector3(0, 120, 220), _spawn, Vector3.Up);
@@ -358,7 +358,7 @@ public partial class Main : Node3D
         if (_autoTestDir != null)
         {
             _weather.Locked = true; _weather.Set(WeatherKind.Broken, true);
-            // Ta opp lyden for hvert steg (audio_XX.wav), så lydbildet kan sjekkes/lyttes til
+            // Record the audio for each step (audio_XX.wav), so the soundscape can be checked/listened to
             _rec = new AudioEffectRecord();
             AudioServer.AddBusEffect(0, _rec);
             _rec.SetRecordingActive(true);
@@ -405,9 +405,9 @@ public partial class Main : Node3D
         }
     }
 
-    // ------------------------------------------------------------ Automatisk test
-    // Kjør med: Godot.exe --path . -- --autotest=<mappe>
-    // Tar skjermbilder fra flere steder i verden, logger ytelse og avslutter.
+    // ------------------------------------------------------------ Automated test
+    // Run with: Godot.exe --path . -- --autotest=<dir>
+    // Takes screenshots from several places in the world, logs performance and quits.
     private static string _autoTestDir;
     private float _autoT;
     private int _autoStep;
@@ -425,9 +425,9 @@ public partial class Main : Node3D
         _autoT += dt;
         _fpsSum += (float)Engine.GetFramesPerSecond();
         _fpsN++;
-        // Ved hugge-steget: start et hugg rett før bildet tas, og zoom inn
+        // At the chopping step: start a swing right before the screenshot, and zoom in
         if (_autoStep == 5 && _autoT > 5.55f && !_autoSwing) { _autoSwing = true; _player.CameraDistance = 2.6f; _player.StartSwing(); }
-        if (_autoT < 6f) return; // la strømmingen roe seg
+        if (_autoT < 6f) return; // let the streaming settle
         _autoT = 0;
         string name = $"shot_{_autoStep:D2}.png";
         GetViewport().GetTexture().GetImage().SavePng(System.IO.Path.Combine(_autoTestDir, name));
@@ -437,20 +437,20 @@ public partial class Main : Node3D
             _rec.GetRecording()?.SaveToWav(System.IO.Path.Combine(_autoTestDir, $"audio_{_autoStep:D2}.wav"));
             _rec.SetRecordingActive(true);
         }
-        GD.Print($"[autotest] figur: {_player.VisualState}");
-        GD.Print($"[autotest] fotspor: {Footprints.Spawned} {Footprints.LastInfo}");
-        GD.Print($"[autotest] {name}: snitt-FPS {_fpsSum / Math.Max(1, _fpsN):F0}\n{DebugText()}\n");
+        GD.Print($"[autotest] character: {_player.VisualState}");
+        GD.Print($"[autotest] footprints: {Footprints.Spawned} {Footprints.LastInfo}");
+        GD.Print($"[autotest] {name}: avg FPS {_fpsSum / Math.Max(1, _fpsN):F0}\n{DebugText()}\n");
         _fpsSum = 0; _fpsN = 0;
         var w = Game.World;
         _autoStep++;
         if (_autoStep < _autoFrom) _autoStep = _autoFrom;
         switch (_autoStep)
         {
-            case 1: // høyt over startpunktet, se utover
+            case 1: // high above the spawn point, looking out
                 _player.ToggleFly();
                 _player.GlobalPosition = _spawn + new Vector3(0, 160, 0);
                 break;
-            case 2: // mot fjellene: finn høyeste punkt i en grov søk
+            case 2: // towards the mountains: find the highest point in a coarse search
             {
                 Vector3 best = _spawn; float bh = -1;
                 for (int z = -4500; z <= 4500; z += 150)
@@ -462,31 +462,31 @@ public partial class Main : Node3D
                 _player.GlobalPosition = best + new Vector3(250, 120, 250);
                 break;
             }
-            case 3: // nord (kaldere)
+            case 3: // north (colder)
                 _player.GlobalPosition = new Vector3(_spawn.X, 0, -2500);
                 _player.GlobalPosition = new Vector3(_spawn.X, w.GetHeight(_spawn.X, -2500) + 60, -2500);
                 break;
-            case 4: // tilbake på bakken ved start, nærbilde av figuren fra siden
+            case 4: // back on the ground at spawn, close-up of the character from the side
                 _player.ToggleFly();
                 _player.Teleport(_spawn.X, _spawn.Z);
                 _player.CameraDistance = 3f;
                 _player.CameraYaw += 1.2f;
                 break;
-            case 5: // fell nærmeste tre
+            case 5: // fell the nearest tree
             {
                 var tree = Nearest<TreeNode>();
-                if (tree == null) { GD.Print("[autotest] fant ikke tre i nærheten"); break; }
-                GD.Print($"[autotest] feller {tree.Def.Name} {tree.GlobalPosition.DistanceTo(_player.GlobalPosition):F1} m unna");
+                if (tree == null) { GD.Print("[autotest] no tree found nearby"); break; }
+                GD.Print($"[autotest] felling {tree.Def.Name} {tree.GlobalPosition.DistanceTo(_player.GlobalPosition):F1} m away");
                 var look = tree.GlobalPosition - _player.GlobalPosition;
                 _player.Teleport(tree.GlobalPosition.X - look.Normalized().X * 2.5f, tree.GlobalPosition.Z - look.Normalized().Z * 2.5f);
-                // Hogg til treet er nesten nede (antall avhenger av størrelse og ferdighet)
+                // Chop until the tree is almost down (count depends on size and skill)
                 for (int i = 0; i < 60 && tree.HealthFraction > 0.2f; i++) tree.Hit(_player, ToolKind.Axe);
                 _autoTree = tree;
                 _player.CameraYaw = Mathf.Atan2(-(tree.GlobalPosition.X - _player.GlobalPosition.X), -(tree.GlobalPosition.Z - _player.GlobalPosition.Z));
                 _player.CameraPitch = -0.15f;
                 break;
             }
-            case 6: // siste hugg (treet faller), plukk opp alt løst, hakk en stein, plukk en grein/stein
+            case 6: // final chop (the tree falls), pick up all loose items, mine a rock, pick up a branch/stone
             {
                 for (int i = 0; i < 10 && _autoTree != null && IsInstanceValid(_autoTree) && !_autoTree.IsQueuedForDeletion(); i++)
                     _autoTree.Hit(_player, ToolKind.Axe);
@@ -498,22 +498,22 @@ public partial class Main : Node3D
                 if (rock != null) for (int i = 0; i < rock.Def.Hp; i++) rock.Hit(_player, ToolKind.Pickaxe);
                 var pick = Nearest<PropPickup>();
                 pick?.Interact(_player);
-                GD.Print($"[autotest] plukket {picked} løse, stein hakket: {rock != null}, pickup: {pick?.Def.Name}");
-                GD.Print("[autotest] inventar: " + string.Join(", ", System.Linq.Enumerable.Select(Inventory.Items, kv => $"{kv.Key}={kv.Value}")));
+                GD.Print($"[autotest] picked up {picked} loose, rock mined: {rock != null}, pickup: {pick?.Def.Name}");
+                GD.Print("[autotest] inventory: " + string.Join(", ", System.Linq.Enumerable.Select(Inventory.Items, kv => $"{kv.Key}={kv.Value}")));
                 break;
             }
-            case 7: // bakkenivå i kald lynghei (snøtrær, snøsteiner)
+            case 7: // ground level in cold heathland (snowy trees, snowy rocks)
                 _player.Teleport(_spawn.X + 60f, -2500f);
                 _player.CameraDistance = OS.GetEnvironment("HK_LOOKDOWN") == "1" ? 3f : 6f;
                 if (OS.GetEnvironment("HK_LOOKDOWN") == "1") _player.CameraPitch = -1.2f;
                 break;
-            case 8: // solnedgang over fjellet
+            case 8: // sunset over the mountains
                 _dayNight.TimeOfDay = 0.74f;
                 _player.ToggleFly();
                 _player.GlobalPosition = _spawn + new Vector3(0, 140, 0);
-                _player.CameraYaw = Mathf.Pi * 0.5f;   // se mot vest
+                _player.CameraYaw = Mathf.Pi * 0.5f;   // look west
                 break;
-            case 9: // fjord: dypt vann med høye fjell rundt
+            case 9: // fjord: deep water with high mountains around
             {
                 _dayNight.TimeOfDay = 0.42f;
                 var p = FindPoint((x, z) => w.GetHeight(x, z) < -15f && MaxAround(x, z, 350f) > 160f);
@@ -522,41 +522,41 @@ public partial class Main : Node3D
                 _player.CameraPitch = -0.35f;
                 break;
             }
-            case 10: // strand
+            case 10: // beach
             {
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); return h > 0.6f && h < 2.2f && w.GetNormal(x, z, 3f).Y > 0.97f && w.GetHeight(x + 25f, z) < 0f; });
-                GD.Print($"[autotest] strand: {p}");
+                GD.Print($"[autotest] beach: {p}");
                 _player.ToggleFly();
                 _player.Teleport(p.X, p.Z);
                 _player.CameraPitch = -0.25f; _player.CameraDistance = 7f;
-                _player.CameraYaw = -Mathf.Pi * 0.5f;   // mot +X (havet)
+                _player.CameraYaw = -Mathf.Pi * 0.5f;   // towards +X (the sea)
                 break;
             }
-            case 11: // dyretråkk
+            case 11: // animal trail
             {
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); return w.TrailMask(x, z, h, w.GetNormal(x, z).Y) > 0.9f; });
-                GD.Print($"[autotest] tråkk: {p}");
+                GD.Print($"[autotest] trail: {p}");
                 _player.Teleport(p.X, p.Z);
                 _player.CameraPitch = -0.6f; _player.CameraDistance = 6f;
                 break;
             }
-            case 12: // fjellfot med klipper
+            case 12: // mountain foot with cliffs
             {
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); return h > 70f && h < 110f && w.GetNormal(x, z, 4f).Y < 0.8f; });
-                GD.Print($"[autotest] klipper: {p}");
+                GD.Print($"[autotest] cliffs: {p}");
                 _player.ToggleFly();
                 _player.GlobalPosition = new Vector3(p.X, w.GetHeight(p.X, p.Z) + 25f, p.Z + 40f);
                 _player.CameraPitch = -0.15f; _player.CameraDistance = 8f; _player.CameraYaw = 0f;
                 break;
             }
-            case 13: // gå baklengs på stranda mot kameraet: fotspor bak figuren
+            case 13: // walk backwards on the beach towards the camera: footprints behind the character
             {
                 _player.ToggleFly();
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); return h > 0.8f && h < 2.0f && w.GetNormal(x, z, 4f).Y > 0.985f && w.GetHeight(x, z + 12f) > 0.6f && w.GetHeight(x, z - 12f) > 0.6f; });
-                GD.Print($"[autotest] fotspor: {p}");
+                GD.Print($"[autotest] footprints: {p}");
                 _player.Teleport(p.X, p.Z);
                 _player.CameraYaw = 0f; _player.CameraPitch = -1.05f; _player.CameraDistance = 7f;
-                _player.DebugInput = new Vector2(0, 0.45f);   // rolig gange mot kameraet
+                _player.DebugInput = new Vector2(0, 0.45f);   // slow walk towards the camera
                 if (OS.GetEnvironment("HK_DECALTEST") == "1")
                 {
                     var dd = new Decal { Size = new Vector3(3, 2, 3), Modulate = new Color(1, 0, 0, 1) };
@@ -567,19 +567,19 @@ public partial class Main : Node3D
                 }
                 break;
             }
-            case 14: // skråning: føttene på ujevn bakke, sett fra siden
+            case 14: // slope: feet on uneven ground, seen from the side
             {
                 _player.DebugInput = null;
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); var n = w.GetNormal(x, z, 1.5f); return h > 5f && h < 60f && n.Y > 0.78f && n.Y < 0.86f; });
-                GD.Print($"[autotest] skråning: {p}");
+                GD.Print($"[autotest] slope: {p}");
                 _player.Teleport(p.X, p.Z);
                 var n2 = w.GetNormal(p.X, p.Z, 1.5f);
-                // Se langs skråningen (fra siden), så høydeforskjellen mellom føttene synes
+                // Look along the slope (from the side), so the height difference between the feet is visible
                 _player.CameraYaw = Mathf.Atan2(n2.X, n2.Z) + Mathf.Pi * 0.5f;
                 _player.CameraPitch = -0.1f; _player.CameraDistance = 2.6f;
                 break;
             }
-            case 15: // storm med regn ved startpunktet (dagtid)
+            case 15: // storm with rain at the spawn point (daytime)
             {
                 _dayNight.TimeOfDay = 0.45f;
                 _weather.Set(WeatherKind.Storm, true);
@@ -587,18 +587,18 @@ public partial class Main : Node3D
                 _player.CameraPitch = -0.1f; _player.CameraDistance = 5f;
                 break;
             }
-            case 16: // høst: gule/røde løvtrær, flyr litt over en skog med løvtrær
+            case 16: // autumn: yellow/red deciduous trees, flying a little above a deciduous forest
             {
                 _dayNight.Day = Weather.DaysPerSeason * 2 + 3;
                 _dayNight.TimeOfDay = 0.5f;
                 _weather.Set(WeatherKind.Clear, true);
                 var p = FindPoint((x, z) => { float t = w.GetTemp(x, z); return t > 0.55f && w.GetMoist(x, z) > 0.5f && w.GetHeight(x, z) > 5f; });
-                GD.Print($"[autotest] høstskog: {p}");
+                GD.Print($"[autotest] autumn forest: {p}");
                 _player.Teleport(p.X, p.Z);
                 _player.CameraPitch = -0.25f; _player.CameraDistance = 9f;
                 break;
             }
-            case 17: // vinter: snødekke og snøvær
+            case 17: // winter: snow cover and snowfall
             {
                 _dayNight.Day = Weather.DaysPerSeason * 3 + 3;
                 _dayNight.TimeOfDay = 0.5f;
@@ -607,30 +607,30 @@ public partial class Main : Node3D
                 _player.CameraPitch = -0.2f; _player.CameraDistance = 7f;
                 break;
             }
-            case 18: // vinternatt med nordlys, se mot nord
+            case 18: // winter night with aurora, looking north
             {
                 _weather.Set(WeatherKind.Clear, true);
                 _dayNight.TimeOfDay = 0.98f;
                 _dayNight.ForceAurora = true;
                 _player.ToggleFly();
                 _player.GlobalPosition = _spawn + new Vector3(0, 40, 0);
-                _player.CameraYaw = 0f;        // kameraet ser mot -Z (nord)
+                _player.CameraYaw = 0f;        // the camera looks towards -Z (north)
                 _player.CameraPitch = 0.35f;
                 break;
             }
-            case 19: // elv med strøm, sett ovenfra på skrå (sommer, dag)
+            case 19: // river with current, seen obliquely from above (summer, day)
             {
                 _dayNight.ForceAurora = false;
                 _dayNight.Day = Weather.DaysPerSeason + 2;
                 _dayNight.TimeOfDay = 0.45f;
                 _weather.Set(WeatherKind.Cloudy, true);
                 var p = FindPoint((x, z) => { float fx = w.SampleFlow(x, z).Length(); return fx > 1.0f && w.GetLakeWater(x, z) > w.GetHeight(x, z) + 0.5f; });
-                GD.Print($"[autotest] elv: {p} strøm {w.SampleFlow(p.X, p.Z)}");
+                GD.Print($"[autotest] river: {p} flow {w.SampleFlow(p.X, p.Z)}");
                 _player.GlobalPosition = new Vector3(p.X + 14f, w.GetLakeWater(p.X, p.Z) + 9f, p.Z + 14f);
                 _player.CameraYaw = Mathf.Pi * 0.25f; _player.CameraPitch = -0.6f; _player.CameraDistance = 4f;
                 break;
             }
-            case 20: // storm ved stranda: bølger og brenninger
+            case 20: // storm at the beach: waves and breakers
             {
                 _weather.Set(WeatherKind.Storm, true);
                 var p = FindPoint((x, z) => { float h = w.GetHeight(x, z); return h > 0.6f && h < 2.2f && w.GetNormal(x, z, 3f).Y > 0.97f && w.GetHeight(x + 25f, z) < 0f; });
@@ -638,7 +638,7 @@ public partial class Main : Node3D
                 _player.CameraYaw = -Mathf.Pi * 0.5f; _player.CameraPitch = -0.2f; _player.CameraDistance = 4f;
                 break;
             }
-            case 21: // største fossefall nær startpunktet
+            case 21: // largest waterfall near the spawn point
             {
                 _weather.Set(WeatherKind.Clear, true);
                 Cascade best = null; float bs = 0f;
@@ -648,10 +648,10 @@ public partial class Main : Node3D
                     if (score > bs) { bs = score; best = c; }
                 }
                 if (best == null) break;
-                GD.Print($"[autotest] fossefall: topp {best.Top} bunn {best.Bottom} fall {best.Drop:F0} m, {best.Points.Count} punkter");
+                GD.Print($"[autotest] waterfall: top {best.Top} bottom {best.Bottom} drop {best.Drop:F0} m, {best.Points.Count} points");
                 SetFly(true);
                 _dayNight.TimeOfDay = 0.45f;
-                // Stå nedstrøms og se oppover fallet
+                // Stand downstream and look up the fall
                 var dir = ((best.Bottom - best.Top) with { Y = 0 }).Normalized();
                 var look = best.Bottom + dir * 45f;
                 float gy = Mathf.Max(w.GetHeight(look.X, look.Z), 0f);
@@ -662,7 +662,7 @@ public partial class Main : Node3D
                 _player.CameraDistance = 2f;
                 break;
             }
-            case 22: // bål om natta (tidlig høst), nærbilde
+            case 22: // campfire at night (early autumn), close-up
             {
                 _dayNight.Day = Weather.DaysPerSeason * 2;
                 _dayNight.TimeOfDay = 0.94f;
@@ -670,7 +670,7 @@ public partial class Main : Node3D
                 SetFly(false);
                 _player.Teleport(_spawn.X, _spawn.Z);
                 var fire = _player.BuildCampfire(free: true);
-                GD.Print($"[autotest] bål bygd: {fire != null}");
+                GD.Print($"[autotest] campfire built: {fire != null}");
                 _player.CameraDistance = 5f; _player.CameraPitch = -0.3f;
                 if (fire != null)
                 {
@@ -679,7 +679,7 @@ public partial class Main : Node3D
                 }
                 break;
             }
-            case 23: // nærbilde av en trestamme i barskog (bark, mose, rot)
+            case 23: // close-up of a tree trunk in conifer forest (bark, moss, roots)
             {
                 SetFly(false);
                 _dayNight.Day = 4; _dayNight.TimeOfDay = 0.45f;
@@ -688,13 +688,13 @@ public partial class Main : Node3D
                 _player.Teleport(p.X, p.Z);
                 break;
             }
-            case 24: // ... og sikt inn på nærmeste gran/furu når de nære trærne er forfremmet
+            case 24: // ... and aim at the nearest spruce/pine once the nearby trees are promoted
                 AimAtTree(t => t.Def.Kind is PropKind.Pine or PropKind.Spruce);
                 break;
-            case 25: // nærbilde av en steinblokk
+            case 25: // close-up of a boulder
             {
                 var rock = Nearest<RockNode>();
-                GD.Print($"[autotest] stein: {rock?.GlobalPosition}");
+                GD.Print($"[autotest] rock: {rock?.GlobalPosition}");
                 if (rock != null)
                 {
                     var dir = (_player.GlobalPosition - rock.GlobalPosition) with { Y = 0 };
@@ -706,23 +706,23 @@ public partial class Main : Node3D
                 }
                 break;
             }
-            case 26: // bjørk (teleporter til den, sikt inn i neste steg)
+            case 26: // birch (teleport to it, aim in the next step)
                 GoNearTree(i => i.Kind == PropKind.Birch && !i.Cold);
                 break;
             case 27:
                 AimAtTree(t => t.Def.Kind == PropKind.Birch);
                 break;
-            case 28: // tørrfuru
+            case 28: // dead pine
                 GoNearTree(i => i.Kind == PropKind.DeadTree && !i.Cold);
                 break;
             case 29:
                 AimAtTree(t => t.Def.Kind == PropKind.DeadTree, t => !t.Inst.Cold);
                 break;
-            case 30: // snøtrær i kald sone (flyr dit først, så cellene der lastes)
+            case 30: // snowy trees in a cold zone (fly there first, so the cells there load)
             {
                 var p = FindPoint((x, z) => w.GetTemp(x, z) < 0.2f && w.GetHeight(x, z) > 5f && w.GetHeight(x, z) < 150f && w.GetNormal(x, z, 3f).Y > 0.93f);
                 _player.Teleport(p.X, p.Z);
-                _autoT = 3f;   // kortere ventetid, neste steg finner treet
+                _autoT = 3f;   // shorter wait, the next step finds the tree
                 break;
             }
             case 31:
@@ -737,15 +737,15 @@ public partial class Main : Node3D
         }
     }
 
-    /// <summary>Autotest: teleporter like ved nærmeste genererte tre som passer (forfremmes til neste steg).</summary>
+    /// <summary>Autotest: teleport right next to the nearest matching generated tree (promoted by the next step).</summary>
     private void GoNearTree(Func<PropInstance, bool> ok)
     {
         var inst = _vegetation.FindNearest(_player.GlobalPosition, ok);
-        if (inst == null) { GD.Print("[autotest] fant ikke treet (instans)"); return; }
+        if (inst == null) { GD.Print("[autotest] tree not found (instance)"); return; }
         _player.Teleport(inst.Pos.X + 3f, inst.Pos.Z + 3f);
     }
 
-    /// <summary>Autotest: still kameraet inn på nærmeste tre som passer (stamme i bildet).</summary>
+    /// <summary>Autotest: aim the camera at the nearest matching tree (trunk in frame).</summary>
     private void AimAtTree(Func<TreeNode, bool> kind, Func<TreeNode, bool> extra = null)
     {
         TreeNode tree = null; float bd = float.MaxValue;
@@ -755,18 +755,18 @@ public partial class Main : Node3D
                 float d = tn.GlobalPosition.DistanceTo(_player.GlobalPosition);
                 if (d < bd) { bd = d; tree = tn; }
             }
-        if (tree == null) { GD.Print("[autotest] fant ikke treet"); return; }
+        if (tree == null) { GD.Print("[autotest] tree not found"); return; }
         var dir = (_player.GlobalPosition - tree.GlobalPosition) with { Y = 0 };
         if (dir.LengthSquared() < 0.01f) dir = Vector3.Back;
         var at = tree.GlobalPosition + dir.Normalized() * 2.4f;
         _player.Teleport(at.X, at.Z);
         var to = tree.GlobalPosition - at;
-        _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z) + 0.5f;   // figuren til siden, stammen i midten
+        _player.CameraYaw = Mathf.Atan2(-to.X, -to.Z) + 0.5f;   // character to the side, trunk in the center
         _player.CameraPitch = -0.15f; _player.CameraDistance = 1.6f;
-        GD.Print($"[autotest] stamme: {tree.Def.Name}{(tree.Inst.Cold ? " (snø)" : "")}");
+        GD.Print($"[autotest] trunk: {tree.Def.Name}{(tree.Inst.Cold ? " (snow)" : "")}");
     }
 
-    /// <summary>Søker i spiral fra startpunktet etter et punkt som oppfyller kravet (autotest).</summary>
+    /// <summary>Searches in a spiral from the spawn point for a point that satisfies the predicate (autotest).</summary>
     private Vector3 FindPoint(Func<float, float, bool> ok)
     {
         for (float r = 0; r < 4500f; r += 40f)

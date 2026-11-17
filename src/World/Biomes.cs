@@ -7,18 +7,18 @@ public enum Biome : byte
 {
     Ocean,
     Beach,
-    Meadow,      // Eng
-    Forest,      // Lauvskog / blandingsskog
-    PineForest,  // Barskog
-    Swamp,       // Myr
-    Tundra,      // Lynghei / tundra
-    Mountain,    // Fjell
-    Snow,        // Snø / isbre
+    Meadow,      // Meadow
+    Forest,      // Deciduous / mixed forest
+    PineForest,  // Coniferous forest
+    Swamp,       // Bog
+    Tundra,      // Heath / tundra
+    Mountain,    // Mountain
+    Snow,        // Snow / glacier
 }
 
 /// <summary>
-/// Klimasoner og bakkefarger. Samme funksjoner brukes av terrengmesh, vegetasjon og kart,
-/// slik at alt stemmer overens.
+/// Climate zones and ground colors. The same functions are used by the terrain mesh, vegetation and map,
+/// so everything matches.
 /// </summary>
 public static class Biomes
 {
@@ -32,8 +32,8 @@ public static class Biomes
     public static readonly Color Rock = new(0.45f, 0.43f, 0.40f);
     public static readonly Color Snow = new(0.93f, 0.95f, 0.98f);
     public static readonly Color Trail = new(0.42f, 0.36f, 0.26f);
-    public static readonly Color Dirt = new(0.36f, 0.34f, 0.20f);   // bratte bakker i lavlandet (jord og gress)
-    public static readonly Color Scree = new(0.52f, 0.50f, 0.46f);  // ur ved fjellfoten
+    public static readonly Color Dirt = new(0.36f, 0.34f, 0.20f);   // steep slopes in the lowlands (soil and grass)
+    public static readonly Color Scree = new(0.52f, 0.50f, 0.46f);  // scree at the foot of mountains
 
     public static string Name(Biome b) => b switch
     {
@@ -55,7 +55,7 @@ public static class Biomes
         return t * t * (3f - 2f * t);
     }
 
-    /// <summary>Diskret klimasone for et punkt. ny = normalens y-komponent (1 = flatt).</summary>
+    /// <summary>Discrete climate zone for a point. ny = the normal's y component (1 = flat).</summary>
     public static Biome Classify(float h, float temp, float moist, float ny)
     {
         if (h < 0.2f) return Biome.Ocean;
@@ -68,8 +68,8 @@ public static class Biomes
         return Biome.Meadow;
     }
 
-    /// <summary>Kontinuerlig bakkefarge (sRGB) som blander sonene mykt.</summary>
-    // Teksturlag i terrengshaderen (samme rekkefølge som scripts/fetch_terrain_textures.py)
+    /// <summary>Continuous ground color (sRGB) that blends the zones smoothly.</summary>
+    // Texture layers in the terrain shader (same order as scripts/fetch_terrain_textures.py)
     public const int LGrass = 0, LForest = 1, LPine = 2, LHeath = 3, LRock = 4, LScree = 5, LSand = 6, LSnow = 7, Layers = 8;
 
     private static void Toward(Span<float> w, int layer, float t)
@@ -81,8 +81,8 @@ public static class Biomes
     }
 
     /// <summary>
-    /// Vekter for de 8 teksturlagene (summerer til 1). Speiler GroundColor steg for steg, så
-    /// teksturene nær kameraet stemmer med fargene på avstand.
+    /// Weights for the 8 texture layers (sum to 1). Mirrors GroundColor step by step, so
+    /// the textures near the camera match the colors at a distance.
     /// </summary>
     public static void GroundWeights(float h, float temp, float moist, float ny, float rock, Span<float> w)
     {
@@ -109,7 +109,7 @@ public static class Biomes
         Toward(w, LSnow, snow * SmoothStep(0.50f, 0.72f, ny));
     }
 
-    /// <param name="rock">bergmaske 0..1 (WorldGenerator.GetRock); -1 = ukjent (bruk høyden)</param>
+    /// <param name="rock">rock mask 0..1 (WorldGenerator.GetRock); -1 = unknown (use the height)</param>
     public static Color GroundColor(float h, float temp, float moist, float ny, float rock = -1f)
     {
         if (h < 0f)
@@ -121,12 +121,12 @@ public static class Biomes
         c = c.Lerp(SwampMud, SmoothStep(0.62f, 0.72f, moist) * SmoothStep(32f, 18f, h));
         c = c.Lerp(Heath, SmoothStep(0.34f, 0.26f, temp));
         c = c.Lerp(Rock, SmoothStep(105f, 150f, h) * 0.85f);
-        c = c.Lerp(Sand, SmoothStep(3.6f, 1.6f, h) * SmoothStep(0.62f, 0.8f, ny));   // sand bare der det er slakt
+        c = c.Lerp(Sand, SmoothStep(3.6f, 1.6f, h) * SmoothStep(0.62f, 0.8f, ny));   // sand only where it is gentle
         if (rock < 0f) rock = SmoothStep(30f, 80f, h);
-        // Bratt i lavlandet: jord/mørkere gress. Berg bare der det er fjell (eller svært bratt).
+        // Steep in the lowlands: soil/darker grass. Rock only where there are mountains (or very steep).
         c = c.Lerp(Dirt, SmoothStep(0.86f, 0.7f, ny) * (1f - rock) * 0.6f);
         c = c.Lerp(Rock, SmoothStep(0.82f, 0.62f, ny) * rock + SmoothStep(0.6f, 0.45f, ny) * (1f - rock));
-        // Hyller i fjellet: gress og lav der det er flatt nok
+        // Mountain ledges: grass and lichen where it is flat enough
         c = c.Lerp(Scree, rock * SmoothStep(0.9f, 0.8f, ny) * SmoothStep(0.62f, 0.75f, ny) * 0.5f);
         float snow = Mathf.Max(SmoothStep(0.16f, 0.09f, temp), SmoothStep(225f, 260f, h));
         c = c.Lerp(Snow, snow * SmoothStep(0.50f, 0.72f, ny));

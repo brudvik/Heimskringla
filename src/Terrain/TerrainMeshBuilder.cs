@@ -9,13 +9,13 @@ public sealed class ChunkMeshData
     public Vector3[] Vertices;
     public Vector3[] Normals;
     public Color[] Colors;
-    public byte[] Weights0, Weights1;   // teksturlag 0-3 og 4-7 (RGBA8), se Biomes.GroundWeights
+    public byte[] Weights0, Weights1;   // texture layers 0-3 and 4-7 (RGBA8), see Biomes.GroundWeights
     public int[] Indices;
     public Vector3[] WaterVertices;
     public int[] WaterIndices;
 }
 
-/// <summary>Bygger mesh-data for én terreng-chunk. Kjøres i bakgrunnstråd.</summary>
+/// <summary>Builds mesh data for one terrain chunk. Runs on a background thread.</summary>
 public static class TerrainMeshBuilder
 {
     public const int Quads = 64;
@@ -24,7 +24,7 @@ public static class TerrainMeshBuilder
     {
         int n = Quads + 1;
         float step = size / Quads;
-        // Steinlagene (8 m) kan bare vises der rutenettet er fint nok
+        // The rock strata (8 m) can only be shown where the grid is fine enough
         float detail = Biomes.SmoothStep(3f, 1f, step);
         int nb = n + 2;
         var h = new float[nb * nb];
@@ -48,7 +48,7 @@ public static class TerrainMeshBuilder
             float hl = h[hb - 1], hr = h[hb + 1], hd = h[hb - nb], hu = h[hb + nb];
             var nrm = new Vector3(hl - hr, 2f * step, hd - hu).Normalized();
             float x = x0 + i * step, z = z0 + j * step;
-            // Normal for fargeformål beregnes fra 1 m-skala nært, ellers fra mesh-oppløsningen
+            // Normal for coloring is computed at 1 m scale up close, otherwise from the mesh resolution
             float tmp = w.GetTemp(x, z), mst = w.GetMoist(x, z), rk = w.GetRock(x, z);
             Color c = Biomes.GroundColor(hc, tmp, mst, nrm.Y, rk);
             Biomes.GroundWeights(hc, tmp, mst, nrm.Y, rk, lw);
@@ -72,8 +72,8 @@ public static class TerrainMeshBuilder
             verts[v] = new Vector3(i * step, hc, j * step);
             normals[v] = nrm;
 
-            // Okklusjon/krumning: søkk blir mørkere, rygger lysere (lagres i alfa, 0..1 => 0..1.25)
-            float lap = (hl + hr + hd + hu) * 0.25f - hc;               // lokal krumning
+            // Occlusion/curvature: hollows get darker, ridges lighter (stored in alpha, 0..1 => 0..1.25)
+            float lap = (hl + hr + hd + hu) * 0.25f - hc;               // local curvature
             float r = Mathf.Max(14f, step * 3f);
             float ring = (w.GetHeight(x - r, z, detail) + w.GetHeight(x + r, z, detail) + w.GetHeight(x, z - r, detail) + w.GetHeight(x, z + r, detail)) * 0.25f - hc;
             float occl = lap / Mathf.Sqrt(step) * 0.9f + ring / r * 1.6f;
@@ -90,7 +90,7 @@ public static class TerrainMeshBuilder
             idx.Add(b); idx.Add(d); idx.Add(c);
         }
 
-        // Skjørt rundt kanten skjuler sprekker mellom ulike LOD-nivåer
+        // A skirt around the edge hides cracks between different LOD levels
         float skirt = step * 5f + 2f;
         int sv = n * n;
         var edges = new int[4][];
@@ -119,7 +119,7 @@ public static class TerrainMeshBuilder
                 int e0 = edge[k], e1 = edge[k + 1], s0 = start + k, s1 = start + k + 1;
                 idx.Add(e0); idx.Add(e1); idx.Add(s0);
                 idx.Add(e1); idx.Add(s1); idx.Add(s0);
-                // Samme flate med motsatt vinding, så skjørtet synes fra begge sider
+                // Same face with opposite winding, so the skirt is visible from both sides
                 idx.Add(e0); idx.Add(s0); idx.Add(e1);
                 idx.Add(e1); idx.Add(s0); idx.Add(s1);
             }

@@ -1,9 +1,9 @@
 shader_type spatial;
 #include "res://shaders/cloudshadow.gdshaderinc"
 
-// Klippeformasjoner og store steiner: farges i verdensrom (triplanart) slik at de matcher
-// fjellet rundt, uavhengig av modellens egne UV-er og farger.
-// Grå stein med varme/kalde flekker, sprekker, mose på flater som vender opp, snø høyt oppe.
+// Cliff formations and large rocks: colored in world space (triplanar) so they match
+// the surrounding mountain, independent of the model's own UVs and colors.
+// Grey stone with warm/cool patches, cracks, moss on upward-facing surfaces, snow high up.
 
 uniform float snow_height = 225.0;
 
@@ -76,11 +76,11 @@ void fragment() {
 	w = pow(w, vec3(4.0));
 	w /= (w.x + w.y + w.z);
 
-	// Triplanar farge-støy
+	// Triplanar color noise
 	float cx = gfbm(world_pos.zy * 0.25), cy = gfbm(world_pos.xz * 0.25), cz = gfbm(world_pos.xy * 0.25);
 	float c = cx * w.x + cy * w.y + cz * w.z;
 	float big = gfbm(world_pos.xz * 0.02 + world_pos.y * 0.01);
-	// Samme grunnfarge, bergart og høydelag som fjellet i terrengshaderen
+	// Same base color, rock type and height bands as the mountain in the terrain shader
 	vec3 rock = vec3(0.2, 0.19, 0.17);
 	float geo1 = vnoise(world_pos.xz * 0.0007 + 3.0), geo2 = vnoise(world_pos.xz * 0.0011 - 11.0);
 	vec3 geo = mix(mix(vec3(1.08, 1.1, 1.12), vec3(1.18, 1.0, 0.9), smoothstep(0.4, 0.7, geo1)), vec3(0.72, 0.74, 0.76), smoothstep(0.55, 0.8, geo2));
@@ -88,18 +88,18 @@ void fragment() {
 	rock *= geo * mix(vec3(0.86, 0.88, 0.9), vec3(1.12, 1.06, 0.96), layer);
 	rock *= mix(vec3(0.92, 0.96, 1.04), vec3(1.08, 1.0, 0.9), big * 0.5 + 0.5);
 	rock *= 0.85 + c * 0.45;
-	// Lagdeling på sidene
+	// Layering on the sides
 	float strata = sin(world_pos.y * 1.6 + gfbm(world_pos.xz * 0.1) * 6.0);
 	rock *= 1.0 - smoothstep(0.8, 1.0, strata) * 0.18 * (1.0 - w.y);
 
-	// Mose/gress på flater som vender opp, snø høyt oppe
+	// Moss/grass on upward-facing surfaces, snow high up
 	float up = smoothstep(0.55, 0.85, n.y);
 	float moss_n = gfbm(world_pos.xz * 0.15) * 0.5 + 0.5;
 	vec3 moss = vec3(0.24, 0.33, 0.14) * (0.8 + moss_n * 0.4);
 	float snow = smoothstep(snow_height - 25.0, snow_height + 15.0, world_pos.y + moss_n * 20.0);
 	vec3 col = mix(rock, moss, up * smoothstep(0.35, 0.6, moss_n) * (1.0 - snow));
 	col = mix(col, vec3(0.86, 0.89, 0.94), snow * smoothstep(0.3, 0.7, n.y));
-	// Ekte bergtekstur (berglaget i terrengteksturene), triplanart, som detalj rundt fargen over
+	// Real rock texture (the rock layer of the terrain textures), triplanar, as detail around the color above
 	float dist = length(VERTEX);
 	float near = 1.0 - smoothstep(60.0, 400.0, dist);
 	float tnear = 1.0 - smoothstep(120.0, 220.0, dist);
@@ -111,16 +111,16 @@ void fragment() {
 		vec4 ax = texture(rock_albedo_arr, vec3(ux, 4.0)), ay = texture(rock_albedo_arr, vec3(uy, 4.0)), az = texture(rock_albedo_arr, vec3(uz, 4.0));
 		vec4 mx = texture(rock_nrao_arr, vec3(ux, 4.0)), my = texture(rock_nrao_arr, vec3(uy, 4.0)), mz = texture(rock_nrao_arr, vec3(uz, 4.0));
 		vec3 ta = (ax * w.x + ay * w.y + az * w.z).rgb;
-		vec3 detail = clamp(ta / vec3(0.0799, 0.0745, 0.0616), vec3(0.3), vec3(2.5));   // snittfarge Rock030
+		vec3 detail = clamp(ta / vec3(0.0799, 0.0745, 0.0616), vec3(0.3), vec3(2.5));   // mean color of Rock030
 		vec2 nx = mx.xy * 2.0 - 1.0, ny = my.xy * 2.0 - 1.0, nz = mz.xy * 2.0 - 1.0;
 		tex_off = (vec3(0.0, nx.y, nx.x) * w.x + vec3(ny.x, 0.0, -ny.y) * w.y + vec3(nz.x, nz.y, 0.0) * w.z) * tnear;
 		tex_rough = (mx.z * w.x + my.z * w.y + mz.z * w.z);
-		// Mosen får ekte mosetekstur
+		// The moss gets a real moss texture
 		vec3 mt = texture(detail_albedo, vec3(world_pos.xz * 0.5, 2.0)).rgb;
 		float mossy = up * smoothstep(0.35, 0.6, moss_n) * (1.0 - snow);
 		col *= mix(vec3(1.0), mix(detail, clamp(mt / vec3(0.0694, 0.1329, 0.0098), vec3(0.4), vec3(2.0)), mossy), tnear);
 	}
-	// Årstidssnø på toppen av steinene
+	// Seasonal snow on top of the rocks
 	float temp = texture(world_map, (world_pos.xz - world_rect.xy) * world_rect.zw).r;
 	float ssnow = smoothstep(temp - 0.03, temp + 0.03, max(snow_line, 0.13)) * smoothstep(0.3, 0.6, n.y + (moss_n - 0.5) * 0.4);
 	col = mix(col, vec3(0.82, 0.85, 0.91), ssnow);
