@@ -10,6 +10,7 @@ All packs are CC0 1.0 (public domain). Attribution is not required, but apprecia
 | survival/ | Survival Kit | Kenney (kenney.nl) |
 | outfits/ | Modular Character Outfits - Fantasy | Quaternius |
 | nature_lowpoly/ | Ultimate Nature Pack (Jun 2019) | Quaternius |
+| kenney_nature/ | Nature Kit | Kenney (kenney.nl) |
 
 
 ## assets/terrain/ - ambientCG (CC0 1.0)
